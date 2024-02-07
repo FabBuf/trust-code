@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -39,7 +39,7 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_fa7(const DoubleTab& inco, const DoubleT
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int fac1, int fac2, int fac3, int fac4, Type_Double& flux) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int fac4, Type_Double& flux) const
 {
   const int ori1 = orientation(fac1), ori3 = orientation(fac3), elem1 = elem_(fac3,0), elem2 = elem_(fac3,1), elem3 = elem_(fac4,0), elem4 = elem_(fac4,1), ncomp = flux.size_array();
   const double surf = surface_(fac1,fac2), poros = porosity_(fac1,fac2);
@@ -52,9 +52,23 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const Doubl
       flux[k] = ((tau + tau_tr) * (visc_lam + visc_turb)) * surf * poros;
     }
 }
+// debut EB
+template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE_FT, void>
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int fac4, Type_Double& flux) const
+{
+  const int ori1 = orientation(fac1), ori3 = orientation(fac3), elem1 = elem_(fac3,0), elem2 = elem_(fac3,1), elem3 = elem_(fac4,0), elem4 = elem_(fac4,1), ncomp = flux.size_array();
+  const double surf = surface_(fac1,fac2), poros = porosity_(fac1,fac2),
+               visc_lam =nu_arete(num_arete), visc_turb = DERIVED_T::IS_TURB ? nu_mean_4pts(elem1,elem2,elem3,elem4,ori3) : 0.0;
 
+  for (int k = 0; k < ncomp; k++)
+    {
+      const double tau = (inco(fac4,k)-inco(fac3,k))/dist_face(fac3,fac4,ori1), tau_tr = ACTIVATE_TAU_TR ? (inco(fac2,k)-inco(fac1,k))/dist_face(fac1,fac2,ori3) : 0.0;
+      flux[k] = ((tau + tau_tr) * (visc_lam + visc_turb)) * surf * poros;
+    }
+}
+// fin EB
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::MIXTE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int fac1, int fac2, int fac3, int fac4, Type_Double& flux) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int fac4, Type_Double& flux) const
 {
   const int N = flux.size_array();
   int elem[4], ori1 = orientation(fac1), ori3 = orientation(fac3);
@@ -85,7 +99,7 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const Doubl
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t<Arete_Type == Type_Flux_Arete::PAROI || Arete_Type == Type_Flux_Arete::NAVIER_PAROI, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int fac1, int fac2, int fac3, int signe, Type_Double& flux) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int signe, Type_Double& flux) const
 {
   constexpr bool is_PAROI = (Arete_Type == Type_Flux_Arete::PAROI);
   const int rang1 = (fac1-premiere_face_bord), rang2 = (fac2-premiere_face_bord), ori = orientation(fac3), ncomp = flux.size_array();
@@ -124,7 +138,7 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const Doubl
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t< (Arete_Type == Type_Flux_Arete::NAVIER), void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int fac1, int fac2, int fac3, int signe, Type_Double& flux) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int signe, Type_Double& flux) const
 {
   //         |
   // fac 3   | fac 2
@@ -146,7 +160,7 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const Doubl
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t< Arete_Type == Type_Flux_Arete::FLUIDE || Arete_Type == Type_Flux_Arete::NAVIER_FLUIDE || Arete_Type == Type_Flux_Arete::PAROI_FLUIDE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int fac1, int fac2, int fac3, int signe, Type_Double& flux3, Type_Double& flux1_2) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int signe, Type_Double& flux3, Type_Double& flux1_2) const
 {
   assert (flux3.size_array() == flux1_2.size_array());
   constexpr bool is_NAV_FL = (Arete_Type == Type_Flux_Arete::NAVIER_FLUIDE), is_PAR_FL = (Arete_Type == Type_Flux_Arete::PAROI_FLUIDE);
@@ -188,7 +202,7 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const Doubl
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::PERIODICITE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int fac1, int fac2, int fac3, int fac4, Type_Double& flux3_4, Type_Double& flux1_2) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::flux_arete(const DoubleTab& inco, const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int fac4, Type_Double& flux3_4, Type_Double& flux1_2) const
 {
   assert (flux3_4.size_array() == flux1_2.size_array());
   const int ori1 = orientation(fac1), ori3 = orientation(fac3), elem1 = elem_(fac3,0), elem2 = elem_(fac3,1), elem3 = elem_(fac4,0), elem4 = elem_(fac4,1), ncomp = flux3_4.size_array();
@@ -226,8 +240,8 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_fa7(const DoubleTab*, int elem,int fac
   if (TEST_COEFFS) test_coeffs_fa7<Fa7_Type,Type_Double>(elem,fac1,fac2,f1);
 }
 
-template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int fac1, int fac2, int fac3, int fac4, Type_Double& aii, Type_Double& ajj) const
+template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE || Arete_Type == Type_Flux_Arete::INTERNE_FT, void>
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int fac4, Type_Double& aii, Type_Double& ajj) const
 {
   assert(aii.size_array() == ajj.size_array());
   const int ori1 = orientation(fac1), ori3 = orientation(fac3), elem1 = elem_(fac3,0), elem2 = elem_(fac3,1), elem3 = elem_(fac4,0), elem4 = elem_(fac4,1), ncomp = aii.size_array();
@@ -241,11 +255,11 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int fac1, int 
       aii[k] = ajj[k] = ((d_tau + d_tau_tr) * (visc_lam + visc_turb)) * surf * poros;
     }
 
-  if (TEST_COEFFS) test_coeffs_arete<Arete_Type,Type_Double>(fac1,fac2,fac3,fac4,aii);
+  if (TEST_COEFFS) test_coeffs_arete<Arete_Type,Type_Double>(num_arete,fac1,fac2,fac3,fac4,aii);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::MIXTE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*,int fac1, int fac2, int fac3, int fac4, Type_Double& aii, Type_Double& ajj) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*,int num_arete, int fac1, int fac2, int fac3, int fac4, Type_Double& aii, Type_Double& ajj) const
 {
   assert(aii.size_array() == ajj.size_array());
   const int ori1 = orientation(fac1), ncomp = aii.size_array();
@@ -277,12 +291,12 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*,int fac1, int f
         aii[k] = ajj[k] = ((d_tau + d_tau_tr) * (visc_lam + visc_turb)) * surf * poros;
       }
 
-  if (TEST_COEFFS) test_coeffs_arete<Arete_Type,Type_Double>(fac1,fac2,fac3,fac4,aii);
+  if (TEST_COEFFS) test_coeffs_arete<Arete_Type,Type_Double>(num_arete,fac1,fac2,fac3,fac4,aii);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t< Arete_Type == Type_Flux_Arete::PAROI || Arete_Type == Type_Flux_Arete::NAVIER_PAROI, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int fac1, int fac2, int fac3, int signe, Type_Double& aii1_2, Type_Double& aii3_4, Type_Double& ajj1_2) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int signe, Type_Double& aii1_2, Type_Double& aii3_4, Type_Double& ajj1_2) const
 {
   assert(aii1_2.size_array() == aii3_4.size_array() && aii1_2.size_array() == ajj1_2.size_array());
   constexpr bool is_PAROI = (Arete_Type == Type_Flux_Arete::PAROI);
@@ -313,12 +327,12 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int fac1, int 
     }
   else for (int k = 0; k < ncomp; k++) aii3_4[k] = aii1_2[k] = ajj1_2[k] = 0.;
 
-  if (TEST_COEFFS) test_coeffs_arete<Arete_Type,Type_Double>(fac1,fac2,fac3,signe,aii3_4);
+  if (TEST_COEFFS) test_coeffs_arete<Arete_Type,Type_Double>(num_arete,fac1,fac2,fac3,signe,aii3_4);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t< Arete_Type == Type_Flux_Arete::FLUIDE || Arete_Type == Type_Flux_Arete::NAVIER_FLUIDE || Arete_Type == Type_Flux_Arete::PAROI_FLUIDE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int fac1, int fac2, int fac3, int signe, Type_Double& aii1_2, Type_Double& aii3, Type_Double& ajj1_2) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int signe, Type_Double& aii1_2, Type_Double& aii3, Type_Double& ajj1_2) const
 {
   assert(aii1_2.size_array() == aii3.size_array() && aii1_2.size_array() == ajj1_2.size_array());
   constexpr bool is_NAV_FL = (Arete_Type == Type_Flux_Arete::NAVIER_FLUIDE);
@@ -341,12 +355,12 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int fac1, int 
       aii1_2[k] = ajj1_2[k] = ((d_tau_12 + d_tau_tr_12) * (visc_lam + visc_turb)) * surfporos;
     }
 
-  if (TEST_COEFFS) test_coeffs_arete<Arete_Type,Type_Double>(fac1,fac2,fac3,signe,aii1_2,aii3);
+  if (TEST_COEFFS) test_coeffs_arete<Arete_Type,Type_Double>(num_arete,fac1,fac2,fac3,signe,aii1_2,aii3);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t< (Arete_Type == Type_Flux_Arete::NAVIER), void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int fac1, int fac2, int fac3, int signe, Type_Double& aii1_2, Type_Double& aii3, Type_Double& ajj1_2) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int signe, Type_Double& aii1_2, Type_Double& aii3, Type_Double& ajj1_2) const
 {
   assert(aii1_2.size_array() == aii3.size_array() && aii1_2.size_array() == ajj1_2.size_array());
   const int elem1 = elem_(fac3,0), elem2 = elem_(fac3,1), ncomp = aii1_2.size_array(), ori = orientation(fac3);
@@ -366,7 +380,7 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int fac1, int 
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::PERIODICITE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*,int fac1, int fac2, int fac3, int fac4, Type_Double& aii, Type_Double& ajj) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*, int num_arete, int fac1, int fac2, int fac3, int fac4, Type_Double& aii, Type_Double& ajj) const
 {
   assert(aii.size_array() == ajj.size_array());
   const int ori1 = orientation(fac1), ori3 = orientation(fac3), elem1 = elem_(fac3,0), elem2 = elem_(fac3,1), elem3 = elem_(fac4,0), elem4 = elem_(fac4,1), ncomp = aii.size_array();
@@ -380,7 +394,7 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::coeffs_arete(const DoubleTab*,int fac1, int f
       aii[k] = ajj[k] = ((d_tau + d_tau_tr) * (visc_lam + visc_turb)) * surf * poros;
     }
 
-  if (TEST_COEFFS) test_coeffs_arete<Arete_Type,Type_Double>(fac1,fac2,fac3,fac4,aii);
+  if (TEST_COEFFS) test_coeffs_arete<Arete_Type,Type_Double>(num_arete,fac1,fac2,fac3,fac4,aii);
 }
 
 /* ************************************** *
@@ -408,66 +422,66 @@ void Eval_Diff_VDF_Face_Gen<DERIVED_T>::check_error(const char * nom_funct, cons
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
-inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE || Arete_Type == Type_Flux_Arete::MIXTE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_common(const int fac1, const int fac2, const int fac3, const int fac4, Type_Double& flux_p, Type_Double& flux_m) const
+inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE || Arete_Type == Type_Flux_Arete::INTERNE_FT || Arete_Type == Type_Flux_Arete::MIXTE, void>
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_common(const int num_arete, const int fac1, const int fac2, const int fac3, const int fac4, Type_Double& flux_p, Type_Double& flux_m) const
 {
   DoubleTab inco_pert = inconnue->valeurs();
 
   inco_pert(fac4) += EPS; // XXX : ATTENTION SIGNE
-  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,fac1,fac2,fac3,fac4,flux_p);
+  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,num_arete,fac1,fac2,fac3,fac4,flux_p);
 
   inco_pert(fac4) -= 2.0 * EPS; // XXX : ATTENTION SIGNE
-  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,fac1,fac2,fac3,fac4,flux_m);
+  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,num_arete,fac1,fac2,fac3,fac4,flux_m);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t<Arete_Type == Type_Flux_Arete::PAROI || Arete_Type == Type_Flux_Arete::NAVIER_PAROI, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_common(const int fac1, const int fac2, const int fac3, const int signe, Type_Double& flux_p, Type_Double& flux_m) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_common(const int num_arete, const int fac1, const int fac2, const int fac3, const int signe, Type_Double& flux_p, Type_Double& flux_m) const
 {
   DoubleTab inco_pert = inconnue->valeurs();
 
   inco_pert(fac3) -= EPS; // XXX : ATTENTION SIGNE
-  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,fac1,fac2,fac3,signe,flux_p);
+  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,num_arete,fac1,fac2,fac3,signe,flux_p);
 
   inco_pert(fac3) += 2.0 * EPS; // XXX : ATTENTION SIGNE
-  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,fac1,fac2,fac3,signe,flux_m);
+  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,num_arete,fac1,fac2,fac3,signe,flux_m);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t<Arete_Type == Type_Flux_Arete::FLUIDE || Arete_Type == Type_Flux_Arete::NAVIER_FLUIDE || Arete_Type == Type_Flux_Arete::PAROI_FLUIDE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_common(const int fac1, const int fac2, const int fac3, const int signe, Type_Double& flux_p3, Type_Double& flux_m3, Type_Double& flux_p12, Type_Double& flux_m12) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_common(const int num_arete, const int fac1, const int fac2, const int fac3, const int signe, Type_Double& flux_p3, Type_Double& flux_m3, Type_Double& flux_p12, Type_Double& flux_m12) const
 {
   DoubleTab inco_pert = inconnue->valeurs();
   Type_Double poubelle(flux_p3.size_array());
 
   // pour flux3
   inco_pert(fac3) -= EPS; // XXX : ATTENTION SIGNE
-  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,fac1,fac2,fac3,signe,flux_p3,poubelle);
+  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,num_arete,fac1,fac2,fac3,signe,flux_p3,poubelle);
 
   inco_pert(fac3) += 2.0 * EPS; // XXX : ATTENTION SIGNE
-  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,fac1,fac2,fac3,signe,flux_m3,poubelle);
+  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,num_arete,fac1,fac2,fac3,signe,flux_m3,poubelle);
 
   // pour flux1_2
   inco_pert = inconnue->valeurs(); // back to real values
   inco_pert(fac2) += EPS; // XXX : ATTENTION SIGNE
-  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,fac1,fac2,fac3,signe,poubelle,flux_p12);
+  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,num_arete,fac1,fac2,fac3,signe,poubelle,flux_p12);
 
   inco_pert(fac2) -= 2.0 * EPS; // XXX : ATTENTION SIGNE
-  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,fac1,fac2,fac3,signe,poubelle,flux_m12);
+  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,num_arete,fac1,fac2,fac3,signe,poubelle,flux_m12);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t<Arete_Type == Type_Flux_Arete::PERIODICITE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_common(const int fac1, const int fac2, const int fac3, const int fac4, Type_Double& flux_p, Type_Double& flux_m) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_common(const int num_arete, const int fac1, const int fac2, const int fac3, const int fac4, Type_Double& flux_p, Type_Double& flux_m) const
 {
   DoubleTab inco_pert = inconnue->valeurs();
   Type_Double poubelle(flux_p.size_array());
 
   inco_pert(fac4) += EPS; // XXX : ATTENTION SIGNE
-  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,fac1,fac2,fac3,fac4,flux_p,poubelle);
+  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,num_arete,fac1,fac2,fac3,fac4,flux_p,poubelle);
 
   inco_pert(fac4) -= 2.0 * EPS; // XXX : ATTENTION SIGNE
-  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,fac1,fac2,fac3,fac4,flux_m,poubelle);
+  flux_arete<Arete_Type,Type_Double>(inco_pert,nullptr,num_arete,fac1,fac2,fac3,fac4,flux_m,poubelle);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Fa7 Fa7_Type, typename Type_Double> inline std::enable_if_t< Fa7_Type == Type_Flux_Fa7::ELEM, void>
@@ -487,53 +501,53 @@ Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_fa7(const int elem, const int fac
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
-inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_arete(const int fac1, const int fac2, const int fac3, const int fac4, const Type_Double& aii) const
+inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE|| Arete_Type == Type_Flux_Arete::INTERNE_FT, void>
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_arete(const int num_arete, const int fac1, const int fac2, const int fac3, const int fac4, const Type_Double& aii) const
 {
   const int ncomp = aii.size_array();
   Type_Double flux_p(ncomp), flux_m(ncomp);
-  test_coeffs_common<Arete_Type,Type_Double>(fac1,fac2,fac3,fac4,flux_p,flux_m);
+  test_coeffs_common<Arete_Type,Type_Double>(num_arete,fac1,fac2,fac3,fac4,flux_p,flux_m);
   check_error<Type_Double>(__func__,(int)Arete_Type,ncomp,aii,flux_p,flux_m);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t<Arete_Type == Type_Flux_Arete::MIXTE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_arete(const int fac1, const int fac2, const int fac3, const int fac4, const Type_Double& aii) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_arete(const int num_arete, const int fac1, const int fac2, const int fac3, const int fac4, const Type_Double& aii) const
 {
   const int ncomp = aii.size_array();
   Type_Double flux_p(ncomp), flux_m(ncomp);
-  test_coeffs_common<Arete_Type,Type_Double>(fac1,fac2,fac3,fac4,flux_p,flux_m);
+  test_coeffs_common<Arete_Type,Type_Double>(num_arete,fac1,fac2,fac3,fac4,flux_p,flux_m);
   if (inconnue->valeurs()(fac4,0) * inconnue->valeurs()(fac3,0) != 0) check_error<Type_Double>(__func__,(int)Arete_Type,ncomp,aii,flux_p,flux_m);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t<Arete_Type == Type_Flux_Arete::PAROI || Arete_Type == Type_Flux_Arete::NAVIER_PAROI, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_arete(const int fac1, const int fac2, const int fac3, const int signe, const Type_Double& aii3_4) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_arete(const int num_arete, const int fac1, const int fac2, const int fac3, const int signe, const Type_Double& aii3_4) const
 {
   const int ncomp = aii3_4.size_array();
   Type_Double flux_p(ncomp), flux_m(ncomp);
-  test_coeffs_common<Arete_Type,Type_Double>(fac1,fac2,fac3,signe,flux_p,flux_m);
+  test_coeffs_common<Arete_Type,Type_Double>(num_arete,fac1,fac2,fac3,signe,flux_p,flux_m);
   if ( !uses_wall_law() ) check_error<Type_Double>(__func__,(int)Arete_Type,ncomp,aii3_4,flux_p,flux_m);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t<Arete_Type == Type_Flux_Arete::FLUIDE || Arete_Type == Type_Flux_Arete::NAVIER_FLUIDE || Arete_Type == Type_Flux_Arete::PAROI_FLUIDE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_arete(const int fac1, const int fac2, const int fac3, const int signe, const Type_Double& aii1_2, const Type_Double& aii3) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_arete(const int num_arete, const int fac1, const int fac2, const int fac3, const int signe, const Type_Double& aii1_2, const Type_Double& aii3) const
 {
   const int ncomp = aii1_2.size_array();
   Type_Double flux_p3(ncomp), flux_m3(ncomp), flux_p12(ncomp), flux_m12(ncomp);
-  test_coeffs_common<Arete_Type,Type_Double>(fac1,fac2,fac3,signe,flux_p3,flux_m3,flux_p12,flux_m12);
+  test_coeffs_common<Arete_Type,Type_Double>(num_arete,fac1,fac2,fac3,signe,flux_p3,flux_m3,flux_p12,flux_m12);
   check_error<Type_Double>(__func__,(int)Arete_Type,ncomp,aii3,flux_p3,flux_m3);
   check_error<Type_Double>(__func__,(int)Arete_Type,ncomp,aii1_2,flux_p12,flux_m12);
 }
 
 template <typename DERIVED_T> template<Type_Flux_Arete Arete_Type, typename Type_Double>
 inline std::enable_if_t<Arete_Type == Type_Flux_Arete::PERIODICITE, void>
-Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_arete(const int fac1, const int fac2, const int fac3, const int fac4, const Type_Double& aii) const
+Eval_Diff_VDF_Face_Gen<DERIVED_T>::test_coeffs_arete(const int num_arete, const int fac1, const int fac2, const int fac3, const int fac4, const Type_Double& aii) const
 {
   const int ncomp = aii.size_array();
   Type_Double flux_p(ncomp), flux_m(ncomp);
-  test_coeffs_common<Arete_Type,Type_Double>(fac1,fac2,fac3,fac4,flux_p,flux_m);
+  test_coeffs_common<Arete_Type,Type_Double>(num_arete,fac1,fac2,fac3,fac4,flux_p,flux_m);
   check_error<Type_Double>(__func__,(int)Arete_Type,ncomp,aii,flux_p,flux_m);
 }
 

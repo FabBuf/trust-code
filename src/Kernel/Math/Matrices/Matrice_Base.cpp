@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2022, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -43,9 +43,10 @@ readOn(Entree& s )
  */
 DoubleVect operator * (const Matrice_Base& A, const DoubleVect& vect)
 {
-  DoubleVect r;
+  DoubleVect r(A.nb_colonnes()); // EB : on initialise la dimension du DoubleVect r
   return A.multvect(vect, r);
 }
+
 
 void Matrice_Base::build_stencil( void )
 {

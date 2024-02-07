@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2022, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -34,6 +34,8 @@ public :
   void convert_to_morse_matrix( Matrice_Morse& morse_matrix ) const;
   inline const double& operator( )( const int line , const int col ) const;
   inline double& operator( )( const int line , const int col );
+  friend Matrice_Dense operator+(const Matrice_Dense& A, const Matrice_Dense& B); // EB
+  friend Matrice_Dense operator*(const double& a, const Matrice_Dense& B); // EB
   void build_matrix_from_coefficients_line_by_line( const DoubleVect& coefficients );
   void build_matrix_from_coefficients_column_by_column( const DoubleVect& coefficients );
   bool is_the_same( const Matrice_Dense& other_matrix , const double tol=1e-14 ) const;

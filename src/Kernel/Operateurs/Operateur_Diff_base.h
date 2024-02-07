@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -39,6 +39,8 @@ class Operateur_Diff_base  : public Operateur_base,
 public:
   virtual void associer_diffusivite(const Champ_base&) = 0;
   virtual void associer_diffusivite_pour_pas_de_temps(const Champ_base&);
+  virtual inline void associer_indicatrices(const DoubleTab&, const DoubleVect&) { /* do nothing */ };
+  virtual inline void associer_proprietes_fluide(const int, const double, const double) { /* do nothing */ };
   virtual const Champ_base& diffusivite() const=0;
   inline virtual void calculer_borne_locale(DoubleVect& ,double,double ) const {};
 

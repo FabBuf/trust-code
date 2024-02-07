@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -28,6 +28,10 @@
 #include <vector>
 #include <array>
 #include <map>
+#include <Array_tools.h> // EB
+#include <MD_Vector_tools.h>
+#include <MD_Vector_std.h>
+#include <Schema_Comm.h>
 
 Faces_builder::Faces_builder() :
   les_elements_ptr_(0),
@@ -806,5 +810,210 @@ void Faces_builder::identification_groupe_faces(Groupe_Faces& groupe_faces,
   msg += groupe_faces.le_nom();
   msg += "\" contains faces that belong to more than 2 elements.\n";
   check_erreur_faces(msg, liste_faces_erreur1);
+}
+
+// Description:
+//  Cette methode permet de faire un echange espace virtuel d'un tableau aux aretes
+//  sans passer par le descripteur des aretes. On utilise le tableau elem_aretes et l'echange
+//  espace virtuel des elements
+static void echanger_tableau_aretes(const IntTab& elem_aretes, int nb_aretes_reelles, ArrOfInt& tab_aretes)
+{
+  const int moi = Process::me();
+
+  const int nb_elem = elem_aretes.dimension(0);
+  const int nb_elem_tot = elem_aretes.dimension_tot(0);
+  const int nb_aretes_elem = elem_aretes.dimension(1);
+  int i;
+
+  // **********************
+  // I) Echange pour mettre a jour les items communs
+  //  Algo un peu complique pour mettre a jour les items communs: pour chaque arete reele,
+  //  la valeur de tab_aretes doit etre egale a la valeur initiale de tab_arete donnee par
+  //  le processeur de rang le plus petit parmi ceux qui partagent l'arete (c'est a dire
+  //  les processeurs qui ont un element adjacent a cette arete).
+
+  // Tableau permettant de connaitre le processeur proprietaire d'une arete reele
+  ArrOfInt pe_arete(nb_aretes_reelles);
+  pe_arete= moi;
+  // Tableau qui donne, pour chaque element, le processeur proprietaire
+  IntVect pe_elem(nb_elem_tot);
+  pe_elem= moi; // initialise avec "moi"
+  {
+    pe_elem.set_md_vector(elem_aretes.get_md_vector());
+    pe_elem.echange_espace_virtuel();
+    // On range dans pe_arete le numero du plus petit processeur proprietaire des
+    // elements adjacents a cette arete
+    // Inutile de parcourir les elements reels, on va trouver pe_elem[i]==moi...
+    // Si l'arete se trouve sur un processeur de rang inferieur, on lui attribue
+    for (i = nb_elem; i < nb_elem_tot; i++)
+      for (int pe = pe_elem[i], j = 0, a; j < nb_aretes_elem && (a = elem_aretes(i, j)) >= 0; j++)
+        if (a < nb_aretes_reelles && pe_arete[a] > pe)
+          pe_arete[a] = pe;
+  }
+  // On suppose que l'espace virtuel des elements contient au moins une couche d'elements virtuels
+  //   (tous les voisins des elements reels par des sommets) alors les aretes reelles sont
+  //   echangees (pas encore les aretes virtuelles)
+  // Dans ce cas, pe_arete est maintenant correctement rempli pour les aretes reelles.
+
+  IntTab tmp;
+  tmp.copy(elem_aretes, Array_base::NOCOPY_NOINIT); // copier uniquement la structure
+
+  // Copier tab_aretes dans la structure tmp (on sait echanger tmp, pas tab_aretes)
+  for (i = 0; i < nb_elem; i++)
+    for (int j = 0, a; j < nb_aretes_elem && (a = elem_aretes(i, j)) >= 0; j++)
+      tmp(i, j) = tab_aretes[a];
+
+  // 2) Echange du tableau
+  tmp.echange_espace_virtuel();
+
+  /*
+  // 3) On reverse dans la partie reelle de tab_aretes les valeurs prises dans tmp:
+  //    pour une arete partagee par plusieurs procs, c'est le proc de rang le plus petit
+  //    qui donne la valeur
+  // Inutile de parcourir les elements reels, la valeur ne changerait pas
+  for (i = nb_elem; i < nb_elem_tot; i++)
+    for (int pe = pe_elem[i], j = 0, a; j < nb_aretes_elem && (a = elem_aretes(i, j)) >= 0; j++)
+      if (a < nb_aretes_reelles && pe_arete[a] == pe)
+        tab_aretes[a] = tmp(i, j);
+
+  // tab_aretes contient maintenant des valeurs correctes pour toutes les aretes reeles
+  //  (les items communs sont a jour). On fait encore un echange en passant par tmp pour
+  //  mettre a jour les items virtuels:
+
+  // ******************
+  // II) echange pour mettre a jour l'espace virtuel des aretes
+
+  // Copier encore une fois tab_aretes dans la structure tmp
+  for (i = 0; i < nb_elem; i++)
+    for (int j = 0, a; j < nb_aretes_elem && (a = elem_aretes(i, j)) >= 0; j++)
+      tmp(i, j) = tab_aretes[a];
+
+  // Echange du tableau
+  tmp.echange_espace_virtuel();
+  */
+  // Recopie de tmp dans tab_aretes
+  for (i = nb_elem; i < nb_elem_tot; i++)
+    for (int j = 0, a; j < nb_aretes_elem && (a = elem_aretes(i, j)) >= 0; j++)
+      {
+        tab_aretes[a] = tmp(i, j);
+      }
+}
+void Domaine::creer_structure_parallelle_aretes(const int nb_aretes_reelles, IntTab& Les_Aretes_som, IntTab& Les_Elem_Aretes)
+{
+
+  Cerr << "Domaine::creer_structure_parallelle_aretes" << finl;
+  const int n_aretes_tot=Les_Aretes_som.dimension(0);
+  const int moi = Process::me();
+  ArrOfInt pe_aretes(n_aretes_tot);
+  pe_aretes=moi;
+  echanger_tableau_aretes(Les_Elem_Aretes, nb_aretes_reelles, pe_aretes);
+
+// Pour chaque arete, indice de l'arete sur le processeur proprietaire
+  ArrOfInt indice_aretes_owner(n_aretes_tot);
+  indice_aretes_owner=0;
+
+  for (int i = 0; i < nb_aretes_reelles; i++)
+    indice_aretes_owner[i] = i;
+
+  echanger_tableau_aretes(Les_Elem_Aretes, nb_aretes_reelles, indice_aretes_owner);
+
+
+  // Construction de pe_voisins
+  ArrOfInt pe_voisins;
+  pe_voisins.set_smart_resize(1);
+  for (int i=0; i<n_aretes_tot; i++)
+    if (pe_aretes[i]!=moi)
+      pe_voisins.append_array(pe_aretes[i]);
+
+  ArrOfInt liste_pe;
+  liste_pe.set_smart_resize(1);
+  reverse_send_recv_pe_list(pe_voisins, liste_pe);
+
+
+  // On concatene les deux listes.
+  for (int i = 0; i < liste_pe.size_array(); i++)
+    pe_voisins.append_array(liste_pe[i]);
+  array_trier_retirer_doublons(pe_voisins);
+  int nb_voisins = pe_voisins.size_array();
+  ArrOfInt indices_pe(nproc());
+  indices_pe= -1;
+  for (int i = 0; i < nb_voisins; i++)
+    indices_pe[pe_voisins[i]] = i;
+
+  VECT(ArrOfInt) aretes_communes_to_recv(nb_voisins);
+  VECT(ArrOfInt) blocs_aretes_virt(nb_voisins);
+  VECT(ArrOfInt) aretes_to_send(nb_voisins);
+  for (int i = 0; i < nb_voisins; i++)
+    {
+      aretes_communes_to_recv[i].set_smart_resize(1);
+      blocs_aretes_virt[i].set_smart_resize(1);
+      aretes_to_send[i].set_smart_resize(1);
+    }
+  // Parcours des aretes: recherche des aretes a recevoir d'un autre processeur.
+  // Aretes reeles (items communs)
+  for (int i = 0; i < nb_aretes_reelles; i++)
+    {
+      const int pe = pe_aretes[i];
+      if (pe != moi)
+        {
+          const int indice_pe = indices_pe[pe];
+          if (indice_pe < 0)
+            {
+              Cerr << "Error: indice_pe=" << indice_pe << " shouldn't be negative in Zone::creer_structure_parallelle_aretes." << finl;
+              Cerr << "It is a TRUST bug on this mesh with the Pa discretization, contact support." << finl;
+              Cerr << "You could also try another partitioned mesh to get around this issue." << finl;
+              exit();
+            }
+          // Je recois cette arete d'un autre proc
+          const int indice_distant = indice_aretes_owner[i];
+          aretes_to_send[indice_pe].append_array(indice_distant); // indice sur le pe voisin
+          aretes_communes_to_recv[indice_pe].append_array(i); // indice local de l'arete
+        }
+    }
+  // Aretes virtuelles
+  for (int i = nb_aretes_reelles; i < n_aretes_tot; i++)
+    {
+      const int pe = pe_aretes[i];
+      assert(pe < nproc() && pe != moi);
+      const int indice_pe = indices_pe[pe];
+      if (indice_pe < 0)
+        {
+          Cerr << "Error: indice_pe=" << indice_pe << " shouldn't be negative in Zone::creer_structure_parallelle_aretes." << finl;
+          Cerr << "It is a TRUST bug on this mesh with the Pa discretization, contact support." << finl;
+          Cerr << "You could also try another partitioned mesh to get around this issue." << finl;
+          exit();
+        }
+      const int indice_distant = indice_aretes_owner[i];
+      aretes_to_send[indice_pe].append_array(indice_distant); // indice sur le pe voisin
+      MD_Vector_base2::append_item_to_blocs(blocs_aretes_virt[indice_pe], i);
+    }
+
+  {
+    Schema_Comm schema;
+    schema.set_send_recv_pe_list(pe_voisins, pe_voisins);
+    schema.begin_comm();
+    // On empile le tableau aretes_to_send et le nombre d'aretes commune avec ce pe:
+    for (int i = 0; i < nb_voisins; i++)
+      schema.send_buffer(pe_voisins[i]) << aretes_to_send[i];
+    schema.echange_taille_et_messages();
+    // Reception
+    for (int i = 0; i < nb_voisins; i++)
+      schema.recv_buffer(pe_voisins[i]) >> aretes_to_send[i];
+    schema.end_comm();
+  }
+  // Construit l'objet descripteur
+  MD_Vector_std md_aretes(n_aretes_tot,
+                          nb_aretes_reelles,
+                          pe_voisins,
+                          aretes_to_send,
+                          aretes_communes_to_recv,
+                          blocs_aretes_virt);
+  Cerr << "Total number of edges = " << md_aretes.nb_items_seq_tot_ << finl;
+  // Range l'objet dans un MD_Vector (devient const)
+  MD_Vector md;
+  md.copy(md_aretes);
+  // Attache le descripteur au tableau
+  Les_Aretes_som.set_md_vector(md);
+// Scatter::calculer_renum_items_communs(mes_aretes_joint, Joint::ARETE);
 }
 

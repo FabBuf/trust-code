@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2022, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -74,6 +74,71 @@ int search_connex_components_local(const IntTab& elem_faces, const IntTab& faces
                   if (voisin >= 0)
                     {
                       const int num = num_compo[voisin];
+                      if (num == -2)
+                        {
+                          num_compo[voisin] = num_compo_courant;
+                          tmp_liste.append_array(voisin);
+                        }
+                    }
+                }
+            }
+          liste_elems = tmp_liste;
+        }
+      num_compo_courant++;
+    }
+  while (1);
+  // Renvoie le nombre de composantes connexes locales trouvees
+  return num_compo_courant;
+}
+
+// EB : on dupplique la fonction precedente pour compatibilite avec DoubleTab : num_compo est declare
+// comme un Champ_Fonc donc valeurs() renvoie un DoubleTab
+int search_connex_components_local(const IntTab& elem_faces,
+                                   const IntTab& faces_elem,
+                                   DoubleTab& num_compo)
+{
+  const int nbelem = num_compo.size_totale();
+  const int nb_voisins = elem_faces.dimension(1);
+  assert(elem_faces.dimension_tot(0) == nbelem);
+  {
+    int i;
+    for (i = 0; i < nbelem; i++)
+      if (num_compo[i] != -1)
+        num_compo[i] = -2;
+  }
+  int start_element = 0;
+  int num_compo_courant = 0;
+  ArrOfInt liste_elems;
+  liste_elems.set_smart_resize(1);
+  ArrOfInt tmp_liste;
+  tmp_liste.set_smart_resize(1);
+  do
+    {
+      // Cherche le prochain element non attribue a une composante connexe
+      while (start_element < nbelem && num_compo[start_element] >= -1)
+        start_element++;
+      if (start_element == nbelem)
+        break;
+      // Recherche des elements de la composante connexe a partir de cet element
+      liste_elems.resize_array(1);
+      liste_elems[0] = start_element;
+      num_compo[start_element] = num_compo_courant;
+      while (liste_elems.size_array() > 0)
+        {
+          tmp_liste.resize_array(0);
+          const int liste_elems_size = liste_elems.size_array();
+          for (int i_elem = 0; i_elem < liste_elems_size; i_elem++)
+            {
+              const int elem = liste_elems[i_elem];
+              // Ajout des voisins non attribues de cet element dans la liste a
+              // traiter a l'etape suivante
+              for (int j = 0; j < nb_voisins; j++)
+                {
+                  const int face = elem_faces(elem, j);
+                  const int voisin = faces_elem(face, 0) + faces_elem(face, 1) - elem;
+                  if (voisin >= 0)
+                    {
+                      const int num = static_cast<int> (num_compo[voisin]);
                       if (num == -2)
                         {
                           num_compo[voisin] = num_compo_courant;
@@ -295,4 +360,123 @@ int compute_global_connex_components(IntVect& num_compo, int nb_local_components
     nb_components = max_array(renum) + 1;
   return nb_components;
 }
+// EB : copie fonction precedent mais DoubleTab en entree
+int compute_global_connex_components(DoubleTab& num_compo, int nb_local_components)
+{
+  const int nbelem = num_compo.size();
+  const int nbelem_tot = num_compo.size_totale();
+  //int i;
 
+  // Transformation des indices locaux de composantes connexes en un indice global
+  // (on ajoute un decalage aux indices globaux avec mppartial_sum())
+  const int decalage = mppartial_sum(nb_local_components);
+  const int nb_total_components = Process::mp_sum(nb_local_components);
+  for (int i = 0; i < nbelem_tot; i++)
+    if (num_compo[i] >= 0)
+      num_compo[i] += decalage;
+
+  // Pour trouver les correspondances entre un numero de composante locale et un
+  // numero de la meme composante sur le processeur voisin, on cree une copie du
+  // tableau num_compo sur laquelle on fait un echange_espace_virtuel(). Ainsi,
+  // sur les cases virtuelles du tableau, on a dans num_compo le numero de la
+  // composante locale et dans copie_compo le numero de cette meme composante sur
+  // le processeur proprietaire de l'element. Donc ces deux numeros designent
+  // la meme composante connexe.
+  DoubleTab copie_compo(num_compo);
+  copie_compo.echange_espace_virtuel();
+
+  // Recherche des equivalences entre les numeros des composantes locales et
+  // les numeros des composantes voisines. On construit un graphe dont les
+  // liens relient les composantes equivalentes.
+  // Tableau de marqeurs pour les equivalences deja trouvees.
+  // Dimensions = nb composantes locales * nb_composantes total
+  //  (pour ne pas prendre en compte la meme composante plusieurs fois).
+  ArrOfBit markers(nb_local_components * nb_total_components);
+  markers = 0;
+  // Tableau de correspondances entre composantes connexes locales et distantes
+  IntTab graph;
+  graph.set_smart_resize(1);
+  int graph_size = 0;
+  // Parcours des elements virtuels uniquement
+  for (int i = nbelem; i < nbelem_tot; i++)
+    {
+      int compo = static_cast<int>(num_compo[i]);
+      if (compo < 0)
+        continue;
+      int compo2 = static_cast<int>(copie_compo[i]);
+      // Index du couple compo2/compo dans le tableau markers
+      // Le tableau num_compo ne doit contenir que des composantes locales:
+      assert(compo >= decalage && compo - decalage < nb_local_components);
+      // compo2 est forcement une composante distante.
+      assert(compo2 < decalage || compo2 - decalage >= nb_local_components);
+      const int index = (compo - decalage) * nb_total_components + compo2;
+      if (!markers.testsetbit(index))
+        {
+          graph.resize(graph_size+1, 2);
+          // On met le plus petit numero de composante en colonne 0:
+          if (compo2 < compo)
+            {
+              int tmp = compo;
+              compo = compo2;
+              compo2 = tmp;
+            }
+          graph(graph_size, 0) = compo;
+          graph(graph_size, 1) = compo2;
+          graph_size++;
+        }
+    }
+
+  ArrOfInt renum;
+  if (Process::je_suis_maitre())
+    {
+      // Reception des portions de graphe des autres processeurs
+      IntTab tmp;
+      const int nproc = Process::nproc();
+      int pe;
+      for (pe = 1; pe < nproc; pe++)
+        {
+          recevoir(tmp, pe, 54 /* tag */);
+          const int n2 = tmp.dimension(0);
+          graph.resize(graph_size + n2, 2);
+          for (int i = 0; i < n2; i++)
+            {
+              graph(graph_size, 0) = tmp(i, 0);
+              graph(graph_size, 1) = tmp(i, 1);
+              graph_size++;
+            }
+        }
+      // Calcul des composantes connexes du graphe
+      renum.resize_array(nb_total_components);
+      const int n = compute_graph_connex_components(graph, renum);
+      Process::Journal() << "compute_global_connex_components: nb_components=" << n << finl;
+    }
+  else
+    {
+      // Envoi du graphe local au processeur 0
+      envoyer(graph, 0, 54 /* tag */);
+    }
+
+  // Reception des composantes connexes
+  envoyer_broadcast(renum, 0 /* processeur source */);
+
+  // Renumerotation des composantes dans num_compo
+  for (int i = 0; i < nbelem_tot; i++)
+    {
+      const int x = static_cast<int>(num_compo[i]);
+      if (x >= 0)
+        {
+          const int new_x = renum[x];
+          num_compo[i] = new_x;
+        }
+    }
+  // Verification: si on fait un echange espace virtuel,
+  //  cela ne doit par changer le numero des composantes
+  //  connexes !
+
+  int nb_components = 0;
+  // Tous les processeurs possedent le meme tableau renum, tout le monde
+  //  calcule donc le meme maximum !
+  if (renum.size_array() > 0)
+    nb_components = max_array(renum) + 1;
+  return nb_components;
+}

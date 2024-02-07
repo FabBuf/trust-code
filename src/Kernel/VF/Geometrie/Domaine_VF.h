@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -49,6 +49,7 @@ public :
   void infobord();
   void info_elem_som();
   void marquer_faces_double_contrib(const Conds_lim&);
+  void marquer_aretes_multiple_contrib(const Conds_lim& conds_lim); // EB
   virtual void typer_elem(Domaine&) {}
 
   virtual void remplir_face_voisins_fictifs(const Domaine_Cl_dis_base& ) ;
@@ -105,9 +106,12 @@ public :
   inline double volumes(int i) const { return volumes_[i]; }
   inline double inverse_volumes(int i) const { return inverse_volumes_[i]; }
   inline int face_voisins(int num_face,int i) const;
+  inline int face_voisins_pour_interp(int num_face,int i) const; // EB
   inline int elem_faces(int i,int j) const;
   inline int face_sommets(int i,int j) const;
 
+  inline int elem_faces_pour_interp(int i,int j) const; // EB
+  ArrOfInt& chercher_faces(const DoubleTab& positions, ArrOfInt& faces, int reel) const;   // EB : on definit cette fonction ici et pas dans Zone.h car on a pas besoin de redefinir des Octree et que l'on a besoin de xv()
   inline DoubleVect& volumes() { return volumes_; }
   inline DoubleVect& inverse_volumes() { return inverse_volumes_; } // Tableau pour optimiser le code
   inline const DoubleVect& volumes() const { return volumes_; }
@@ -119,6 +123,15 @@ public :
   inline IntTab& elem_faces();
   inline const IntTab& elem_faces() const;
   inline ArrOfInt& faces_doubles();
+  inline IntTab& faces_doubles_pe_num(); // EB
+  inline const IntTab& faces_doubles_pe_num() const; // EB
+  inline IntTab& faces_doubles_virt_pe_num(); // EB
+  inline const IntTab& faces_doubles_virt_pe_num() const; // EB
+  inline const IntVect& aretes_multiples() const; // EB
+  inline const IntTab& aretes_multiples_pe_num() const; // EB
+  inline IntTab& aretes_multiples_pe_num(); // EB
+  inline const IntTab& aretes_multiples_virt_pe_num() const; // EB
+  inline IntTab& aretes_multiples_virt_pe_num(); // EB
   inline const ArrOfInt& faces_doubles() const;
   inline IntTab& face_sommets() override;
   inline const IntTab& face_sommets() const override;
@@ -140,6 +153,9 @@ public :
 
   void construire_face_virt_pe_num();
   const IntTab& face_virt_pe_num() const;
+  IntTab set_arete_virt_pe_num(int na, int na_tot); // EB
+  void construire_arete_virt_pe_num(int na, int na_tot, IntTab& tmp); // EB
+  const IntTab& arete_virt_pe_num() const; // EB
 
   virtual void creer_tableau_faces(Array_base&, Array_base::Resize_Options opt = Array_base::COPY_INIT) const;
   virtual void creer_tableau_aretes(Array_base&, Array_base::Resize_Options opt = Array_base::COPY_INIT) const;
@@ -204,12 +220,26 @@ protected:
   //ArrOfInt faces_perio_;   // faces periodiques (utile si on boucle de 0 a nb_faces_tot)
   ArrOfInt faces_doubles_; // faces a double contribution (faces periodiques et items communs). Utile si on boucle de 0 a nb_faces pour une reduction ensuite
   ArrOfInt est_face_bord_; // renvoie pour une face reelle ou virtuelle: 0 si interne, 1 si face de bord non periodique, 2 si face de bord periodique
-
+  IntVect aretes_multiples_; 			    // EB
+  IntTab faces_doubles_pe_num_; // EB indice du PE voisin possedant la face et indice locale de cette face sur le pe
+  IntTab faces_doubles_virt_pe_num_; // EB
   // Pour chaque face virtuelle i avec nb_faces_<=i<nb_faces_tot on a :
   // face_virt_pe_num_(i-nb_faces_,0) = numero du PE qui possede la face
   // face_virt_pe_num_(i-nb_faces_,1) = numero local de cette face sur le PE qui le possede
   IntTab face_virt_pe_num_;
 
+  // Pour chaque arete :
+  // aretes_multiples_pe_num_(i,0) : moi()
+  // aretes_multiples_pe_num_(i,1) : i
+  // aretes_multiples_pe_num_(i,2) : numero du PE_2 qui possede la face (ou -1)
+  // aretes_multiples_pe_num_(i,3) : numero local sur le PE_2 (ou -1)
+  // aretes_multiples_pe_num_(i,4) : numero du PE_3 qui possede la face (ou -1)
+  // aretes_multiples_pe_num_(i,5) : numero local sur le PE_3 (ou -1)
+  // aretes_multiples_pe_num_(i,6) : numero du PE_4 qui possede la face (ou -1)
+  // aretes_multiples_pe_num_(i,7) : numero local sur le PE_4 (ou -1)
+  IntTab aretes_multiples_pe_num_; // EB Dans ce tableau, uniquement utilise pour l'indicatrice aux aretes, on s'interesse aux elements reels
+  IntTab aretes_multiples_virt_pe_num_; // EB
+  IntTab arete_virt_pe_num_; // EB
 
   virtual void remplir_elem_faces()=0;
 
@@ -256,6 +286,25 @@ inline int Domaine_VF::numero_sommet_local(int som, int elem) const
  */
 inline int Domaine_VF::face_voisins(int num_face,int i) const
 {
+  return face_voisins_(num_face,i);
+}
+
+// Description:
+// renvoie l'element voisin de numface dans la direction i.
+// i=0 : dans le sens oppose de l'axe orthogonal a la face numface.
+// i=1 : dans le sens de l'axe orthogonal a la face numface.
+// exemple :
+//
+//                |   0     |     1    |
+//                      numface
+// renvoie -1 si l'element n'existe pas (au bord).
+inline int Domaine_VF::face_voisins_pour_interp(int num_face,int i) const
+{
+  if (num_face<0 || num_face>face_voisins_.dimension_tot(0))
+    {
+      Journal() << "WARNING : IMPOSSIBLE D'ACCEDER a l'element voisin de la face "<<num_face << " dans le sens " << i << finl;
+      return -1;
+    }
   return face_voisins_(num_face,i);
 }
 
@@ -374,6 +423,22 @@ inline int Domaine_VF::elem_faces(int num_elem, int i) const
 {
   return elem_faces_(num_elem, i);
 }
+// debut EB
+// Description:
+// renvoie le numero de le ieme face de la maille num_elem
+// la facon dont ces faces sont numerotees est
+// laisse a la responsabilite des classes derivees
+// renvoie -1 si l'element n'est pas accessible
+// a ce jour utilisee uniquement pour l'interpolation de la pression 24/06/22
+inline int Domaine_VF::elem_faces_pour_interp(int num_elem, int i) const
+{
+  if (num_elem<0 || num_elem>elem_faces_.dimension_tot(0))
+    {
+      Journal() << "WARNING : IMPOSSIBLE D'ACCEDER a la face  "<<i << " de l'element " << num_elem << finl;
+      return -1;
+    }
+  return elem_faces_(num_elem, i);
+}
 
 /*! @brief renvoie le tableau de connectivite element/faces
  *
@@ -398,7 +463,55 @@ inline ArrOfInt& Domaine_VF::faces_doubles()
 {
   return faces_doubles_;
 }
+// debut EB
+inline const IntVect& Domaine_VF::aretes_multiples() const
+{
+  return aretes_multiples_;
+}
 
+// Description:
+// indice 0 : numero du pe voisin possedant egalement la face_double
+// indice 1 : numero local de la face sur le pe voisin
+// renvoie -1 si la face n'est pas double
+// methode utilisee dans  Maillage_FT_Disc::echanger_facettes_face_x (y et z egalement)
+inline const IntTab& Domaine_VF::faces_doubles_pe_num() const
+{
+  return faces_doubles_pe_num_;
+}
+
+inline IntTab& Domaine_VF::faces_doubles_pe_num()
+{
+  return faces_doubles_pe_num_;
+}
+
+inline const IntTab& Domaine_VF::faces_doubles_virt_pe_num() const
+{
+  return faces_doubles_virt_pe_num_;
+}
+
+inline IntTab& Domaine_VF::faces_doubles_virt_pe_num()
+{
+  return faces_doubles_virt_pe_num_;
+}
+
+inline const IntTab& Domaine_VF::aretes_multiples_pe_num() const // EB
+{
+  return aretes_multiples_pe_num_;
+}
+inline IntTab& Domaine_VF::aretes_multiples_pe_num() // EB
+{
+  return aretes_multiples_pe_num_;
+}
+inline const IntTab& Domaine_VF::aretes_multiples_virt_pe_num() const // EB
+{
+  return aretes_multiples_virt_pe_num_;
+}
+inline IntTab& Domaine_VF::aretes_multiples_virt_pe_num() // EB
+{
+  return aretes_multiples_virt_pe_num_;
+}
+
+// fin EB
 /*! @brief cf au dessus
  *
  */

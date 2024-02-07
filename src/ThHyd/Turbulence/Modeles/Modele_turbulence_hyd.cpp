@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -54,6 +54,7 @@ Entree& Modele_turbulence_hyd::readOn(Entree& s)
       nom1 += "_";
       // les operateurs de diffusion sont communs aux discretisations VEF et VEFP1B
       if (discr == "VEFPreP1B") discr = "VEF";
+      if (discr=="VDF+") discr="VDF"; // EB
       nom1 += discr;
     }
   if (nom1 == "MODELE_TURBULENCE_HYD_SOUS_MAILLE_LM_VEF")

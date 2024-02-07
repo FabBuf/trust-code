@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -19,6 +19,13 @@ Implemente_instanciable_sans_constructeur(Op_Dift_VDF_Face,"Op_Dift_VDF_Face",Op
 Sortie& Op_Dift_VDF_Face::printOn(Sortie& s ) const { return s << que_suis_je() ; }
 Entree& Op_Dift_VDF_Face::readOn(Entree& s ) { return s ; }
 Op_Dift_VDF_Face::Op_Dift_VDF_Face() : Op_Dift_VDF_Face_base(Iterateur_VDF_Face<Eval_Dift_VDF_Face>())
+{
+  declare_support_masse_volumique(1);
+}
+Implemente_instanciable_sans_constructeur(Op_Dift_VDF_Face_FT,"Op_Dift_VDF_Face_FT",Op_Dift_VDF_Face_base);
+Sortie& Op_Dift_VDF_Face_FT::printOn(Sortie& s ) const { return s << que_suis_je() ; }
+Entree& Op_Dift_VDF_Face_FT::readOn(Entree& s ) { return s ; }
+Op_Dift_VDF_Face_FT::Op_Dift_VDF_Face_FT() : Op_Dift_VDF_Face_base(Iterateur_VDF_Face<Eval_Dift_VDF_Face_FT>())
 {
   declare_support_masse_volumique(1);
 }

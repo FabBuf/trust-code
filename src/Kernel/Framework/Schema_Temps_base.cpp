@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -201,6 +201,55 @@ int Schema_Temps_base::limpr() const
   return ( i>j );
 }
 
+
+// Description:
+//    Renvoie 1 s'il y a lieu d'effectuer une impression des donnes du baltik fpi (cf dt_impr_fpi_)
+//    Renvoie 0 sinon
+// Precondition:
+// Parametre:
+//    Signification:
+//    Valeurs par defaut:
+//    Contraintes:
+//    Acces:
+// Retour: int
+//    Signification: 1 si il y lieu d'effectuer une impression 0 sinon
+//    Contraintes:
+// Exception:
+// Effets de bord:
+// Postcondition: la methode ne modifie pas l'objet
+int Schema_Temps_base::limpr_fpi() const
+{
+  if (dt_impr_fpi_<=0)
+    return 0; // Negative value for dt_impr : we never print
+  if (nb_pas_dt_==0)
+    return 0; // No solve cause 0 time step : we print nothing
+  if (dt_impr_fpi_<=dt_)
+    return 1; // We print every time step if dt_impr is lower than dt
+  if (nb_pas_dt_<=1)
+    return 1; // We print the first time step
+  if (tmax_<=temps_courant_ || nb_pas_dt_max_<=nb_pas_dt_ || stationnaires_atteints_)
+    return 1; // We print the last time step
+
+
+  // 26/01/2010 : On utilise desormais la fonction "modf(operation , & partie entiere)" de math.h
+  // Cette fonction decompose le resultat de "operation" en une partie entiere et une partie decimale.
+  // Ainsi, on ne transforme plus un double en int avec tout les risques que cela comporte.
+  // ex : modf(9/7,&i) donne 1.000000 pour la partie entiere et 0.285714 pour le partie decimale
+  //
+  // epsilon permet d'assurer que le resultat de l'operation est independant de la precision machine :
+  // ex : 0.99999999/1.00000000 peut donner 0.99999999 ou 1.00000000 suivant les machines
+  // alors que
+  // ex : 0.99999999/1.00000000 + 1.e-8 donne tjrs 1.00000000.
+  double i, j, epsilon = 1.e-8;
+  modf(temps_courant_/dt_impr_fpi_ + epsilon, &i);
+  modf(temps_precedent_/dt_impr_fpi_ + epsilon, &j);
+  return ( i>j );
+}
+
+
+
+
+
 void Schema_Temps_base::validateTimeStep()
 {
   statistiques().begin_count(mettre_a_jour_counter_);
@@ -323,6 +372,7 @@ void Schema_Temps_base::set_param(Param& param)
   param.ajouter( "dt_max",&dt_max_str_); // XD_ADD_P chaine Maximum calculation time step as function of time (1e30s by default).
   param.ajouter( "dt_sauv",&dt_sauv_); // XD_ADD_P double Save time step value (1e30s by default). Every dt_sauv, fields are saved in the .sauv file. The file contains all the information saved over time. If this instruction is not entered, results are saved only upon calculation completion. To disable the writing of the .sauv files, you must specify 0. Note that dt_sauv is in terms of physical time (not cpu time).
   param.ajouter( "dt_impr",&dt_impr_); // XD_ADD_P double Scheme parameter printing time step in time (1e30s by default). The time steps and the flux balances are printed (incorporated onto every side of processed domains) into the .out file.
+  param.ajouter( "dt_impr_fpi",&dt_impr_fpi_); // XD_ADD_P double Scheme parameter printing time step in time (1e30s by default). The time steps and the flux balances are printed (incorporated onto every side of processed domains) into the .out file.
   param.ajouter( "facsec",&facsec_); // XD_ADD_P double Value assigned to the safety factor for the time step (1. by default). The time step calculated is multiplied by the safety factor. The first thing to try when a calculation does not converge with an explicit time scheme is to reduce the facsec to 0.5. NL2 Warning: Some schemes needs a facsec lower than 1 (0.5 is a good start), for example Schema_Adams_Bashforth_order_3.
   param.ajouter( "seuil_statio",&seuil_statio_); // XD_ADD_P double Value of the convergence threshold (1e-12 by default). Problems using this type of time scheme converge when the derivatives dGi/dt NL1 of all the unknown transported values Gi have a combined absolute value less than this value. This is the keyword used to set the permanent rating threshold.
   param.ajouter_non_std("residuals", (this));    // XD_ADD_P residuals To specify how the residuals will be computed (default max norm, possible to choose L2-norm instead).
@@ -374,6 +424,7 @@ Sortie& Schema_Temps_base::printOn(Sortie& os) const
   os << "dt_sauv " << dt_sauv_ << finl;
   os << "limite_cpu_sans_sauvegarde " << limite_cpu_sans_sauvegarde_ << finl;
   os << "dt_impr " << dt_impr_ << finl;
+  os << "dt_impr_fpi " << dt_impr_fpi_ << finl;
   os << "precision_impr " << precision_impr_ << finl;
   os << "stationnaire_atteint " << stationnaire_atteint_ << finl;
   os << "diffusion_implicite " << ind_diff_impl_ << finl ;
@@ -529,7 +580,7 @@ Schema_Temps_base::Schema_Temps_base()
   dt_ = 0;
   tinit_ = -DMAXFLOAT;
   dt_min_ = 1.e-16;
-  dt_sauv_ = dt_impr_ = tmax_ = dt_max_ = tcpumax_ = 1.e30;
+  dt_sauv_ = dt_impr_ = dt_impr_fpi_ = tmax_ = dt_max_ = tcpumax_ = 1.e30;
   periode_cpu_sans_sauvegarde_ = 23 * 3600; // Par defaut 23 heures
   limite_cpu_sans_sauvegarde_ = periode_cpu_sans_sauvegarde_;
   temps_cpu_ecoule_ = 0;
@@ -540,6 +591,7 @@ Schema_Temps_base::Schema_Temps_base()
   mode_dt_start_=-2; // Nouveau 1.5.6 : desormais le premier pas de temps est calcule et ne vaut donc plus dt_min (par defaut, donc est equivalent a dt_start dt_calc)
   nb_pas_dt_ = 0;
   nb_impr_ = 0;
+  nb_impr_fpi_ = 0;
   nb_pas_dt_max_ = (int)(pow(2.0,(double)((sizeof(True_int)*8)-1))-1);
   seuil_statio_ = 1.e-12;
   seuil_statio_relatif_deconseille_ = 0;
@@ -759,6 +811,7 @@ void Schema_Temps_base::imprimer(Sortie& os) const
           impr(os);
         }
     }
+  if (limpr_fpi()) nb_impr_fpi_++;
 }
 
 /*! @brief Imprime le pas de temps sur un flot de sortie s'il y a lieu.

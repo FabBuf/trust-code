@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -240,6 +240,41 @@ static int ecriture_special_part2(const Domaine_VF& zvf, Sortie& fich, const Dou
     }
   return bytes;
 }
+// debut EB
+/*! @brief Partie "interieure" de l'ecriture, appellee par la methode en dessous.
+ *
+ * Methode recursive, si le tableau a ecrire a un descripteur MD_Vector_composite
+ *
+ */
+static int ecriture_special_part2_indic_aretes(const Domaine_VF& dvf, Sortie& fich, const DoubleTab& val)
+{
+  const MD_Vector& md = val.get_md_vector();
+  int bytes = 0;
+  if (sub_type(MD_Vector_composite, md.valeur()))
+    {
+      // Champs p1bulles et autres: appel recursif pour les differents sous-tableaux:
+      ConstDoubleTab_parts parts(val);
+      int n = dvf.que_suis_je() == "Zone_PolyMAC" || dvf.que_suis_je() == "Zone_CoviMAC" ? 1 : parts.size();//on saute les variables auxiliaires de Champ_{P0,Face}_PolyMAC
+      for (int i = 0; i < n; i++)
+        bytes += ecriture_special_part2(dvf, fich, parts[i]);
+    }
+  else if (sub_type(MD_Vector_std, md.valeur()))
+    {
+      ArrOfBit items_to_write;
+      MD_Vector_tools::get_sequential_items_flags(md, items_to_write);
+      const DoubleTab& coords = dvf.xa();
+      bytes += ecrit(fich, items_to_write, coords, val);
+      fich.syncfile();
+    }
+  else
+    {
+      Cerr << "EcritureLectureSpecial::ecriture_special_part: Error, unknown Metadata vector type : "
+           << md.valeur().que_suis_je() << finl;
+      Process::exit();
+    }
+  return bytes;
+}
+
 
 /*! @brief codage de l'ecriture des positions et des valeurs de val
  *
@@ -290,6 +325,60 @@ int EcritureLectureSpecial::ecriture_special(const Domaine_VF& zvf, Sortie& fich
   fich.syncfile();
   return bytes;
 }
+// debut EB
+// on est oblige de faire ca parce que l'indicatrice aux aretes n'est pas un champ mais un doubletab
+// donc dvf est ici issue du champ de  l'indicatrice aux elements et donc get_ref_coordinates_items ne renvoie pas
+// les bonnes coordonnees
+// Actuellement pas utilise car on ne sauvegarde pas l'indicatrice aux aretes
+int EcritureLectureSpecial::ecriture_special_indic_aretes(const Domaine_VF& dvf, Sortie& fich, const DoubleTab& val)
+{
+  const MD_Vector& md = val.get_md_vector();
+  if (!md.non_nul())
+    {
+      Cerr << "EcritureLectureSpecial::ecriture_special: error, cannot save an array with no metadata" << finl;
+      Process::exit();
+    }
+  const int nb_items_seq = md.valeur().nb_items_seq_tot();
+  if (nb_items_seq == 0)
+    return 0;
+
+  const int nb_dim = val.nb_dim();
+  const int nb_comp = (nb_dim == 2) ? val.dimension(1) : 1;
+  const int dim = Objet_U::dimension;
+  const int n = nb_items_seq * (nb_comp + dim);
+
+
+  if (Process::je_suis_maitre())
+    {
+      fich << (int)1 << finl;
+      fich	 << n << finl ;
+      fich << (int)1 << finl;
+      fich << n << finl ;
+      fich << n <<finl;
+    }
+
+  int bytes = ecriture_special_part2_indic_aretes(dvf, fich, val);
+
+  if (Process::je_suis_maitre())
+    {
+      fich << n << finl;
+      fich << (int)0 << finl;
+      fich << (int)0 << finl;
+      fich << (int)0 << finl;
+      fich << (int)1 << finl;
+      fich << (int)0 << finl;
+      fich << n << finl;
+      fich << finl;
+      fich << (int)1 << finl;
+      fich << (int)0 << finl;
+      fich << (int)0 <<finl;
+    }
+  fich.syncfile();
+
+  if (Process::je_suis_maitre()) fich.flush();
+  return bytes;
+}
+// fin EB
 
 /*! @brief simple appel a EcritureLectureSpecial::lecture_special (const Domaine_VF& zvf,Entree& fich,int nbval, DoubleTab& val )
  *
@@ -501,6 +590,36 @@ static int lecture_special_part2(const Domaine_VF& zvf, Entree& fich, DoubleTab&
     }
   return ntot;
 }
+// debut EB
+// Valeur de retour: nombre total d'items sequentiels lus (sur tous les procs)
+static int lecture_special_part2_indic_arete(const Domaine_VF& dvf, Entree& fich, DoubleTab& val)
+{
+  const MD_Vector& md = val.get_md_vector();
+
+  int ntot = 0;
+  if (sub_type(MD_Vector_composite, md.valeur()))
+    {
+      // Champs p1bulles et autres: appel recursif pour les differents sous-tableaux:
+      DoubleTab_parts parts(val);
+      const int n = parts.size();
+      for (int i = 0; i < n; i++)
+        ntot += lecture_special_part2_indic_arete(dvf, fich, parts[i]);
+    }
+  else if (sub_type(MD_Vector_std, md.valeur()))
+    {
+      const DoubleTab& coords = dvf.xa();
+      const double epsilon = dvf.domaine().epsilon();
+      ntot += lire_special(fich, coords, val, epsilon);
+    }
+  else
+    {
+      Cerr << "EcritureLectureSpecial::lecture_special_part2: Error, unknown Metadata vector type : "
+           << md.valeur().que_suis_je() << finl;
+      Process::exit();
+    }
+  return ntot;
+}
+// fin EB
 
 /*! @brief codage de la relecture d'un champ a partir d'un fichier special positions,valeurs
  *
@@ -533,7 +652,35 @@ void EcritureLectureSpecial::lecture_special(const Domaine_VF& zvf, Entree& fich
   // On met a jour les parties virtuelles du tableau val
   val.echange_espace_virtuel();
 }
+// debut EB
+void EcritureLectureSpecial::lecture_special_indic_arete(const Domaine_VF& dvf, Entree& fich, DoubleTab& val)
+{
+  const MD_Vector& md_vect = val.get_md_vector();
+  if (!md_vect.non_nul())
+    {
+      Cerr << "EcritureLectureSpecial::ecriture_special: error, cannot save an array with no metadata" << finl;
+      Process::exit();
+    }
+  const int nb_items_seq = md_vect.valeur().nb_items_seq_tot();
+  if (nb_items_seq == 0)
+    return;
 
+  int bidon;
+  fich >> bidon >> bidon >> bidon >> bidon >> bidon;
+
+  int ntot = lecture_special_part2_indic_arete(dvf, fich, val);
+  if (ntot != nb_items_seq)
+    {
+      Cerr << "Internal error in EcritureLectureSpecial::lecture_special" << finl;
+      exit();
+    }
+
+  fich >> bidon >> bidon >> bidon >> bidon >> bidon >> bidon >> bidon >> bidon >> bidon >> bidon;
+
+  // On met a jour les parties virtuelles du tableau val
+  val.echange_espace_virtuel();
+}
+// fin EB
 /*! @brief Renvoie le mode d'ecriture utilise (pour pouvoir le modifier).
  *
  *   Cette methode est statique.

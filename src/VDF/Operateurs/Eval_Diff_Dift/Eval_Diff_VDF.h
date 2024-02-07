@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -87,12 +87,82 @@ public:
 
   inline double nu_2_impl_face(int i, int j, int k, int l, int compo) const
   {
-    return 0.25 * (tab_diffusivite_(is_var_ * i, compo) + tab_diffusivite_(is_var_ * j, compo) + tab_diffusivite_(is_var_ * k, compo) + tab_diffusivite_(is_var_ * l, compo));
+    if (is_solid_particle_==1)
+      {
+        double indicArete = 0.25 * (indicatrice_elem_[i] + indicatrice_elem_[j]
+                                    + indicatrice_elem_[k] + indicatrice_elem_[l]);
+        double myViscLam=0.;
+        switch (formule_mu_)
+          {
+          case 0: // standard default : fluid viscosity
+          case 3: // staircase average
+            {
+              myViscLam = (indicArete ==0) ?  mu_solide_ : mu_fluide_;
+            }
+            break;
+          case 1: // Arithmetic average
+            {
+              myViscLam = mu_solide_ + indicArete * (mu_fluide_ - mu_solide_);
+            }
+            break;
+          case 2: // Harmonic average
+            {
+              myViscLam = (mu_solide_ * mu_fluide_) / (mu_fluide_ - indicArete * (mu_fluide_ - mu_solide_));
+            }
+            break;
+          default:
+            {
+              Cerr << "The method specified for formule_mu in not recognized. \n" << finl;
+              Cerr << "you can choose : standard, arithmetic or harmonic. \n" << finl;
+              //Cerr << "We should not be here Navier_Stokes_FT_Disc::FT_disc_calculer_champs_rho_mu_nu_dipha" << finl;
+              Process::exit();
+            }
+
+          }
+        return myViscLam; // fin EB
+      }
+    else {return 0.25 * (tab_diffusivite_(is_var_ * i, compo) + tab_diffusivite_(is_var_ * j, compo) + tab_diffusivite_(is_var_ * k, compo) + tab_diffusivite_(is_var_ * l, compo));}
+
   }
 
   inline double nu_lam_impl_face(int i, int j, int k, int l, int compo) const { return nu_2_impl_face(i, j, k, l, compo); }
   inline double nu_lam_impl_face2(int i, int j, int compo) const { return nu_1_impl_face(i, j, compo); }
+  virtual inline double nu_lam_arete (int num_arete) const { return nu_1_lam_arete(num_arete); } // EB
+  // debut EB
+  inline double nu_1_lam_arete(int num_arete) const
+  {
+    double indic_arete = indicatrice_arete_(num_arete);
+    double myViscLam=0.;
+    switch (formule_mu_)
+      {
+      case 0: // standard default : fluid viscosity
+        {
+          myViscLam = (indic_arete ==0) ?  mu_solide_ : mu_fluide_;
+        }
+        break;
+      case 1: // Arithmetic average
+        {
+          myViscLam = mu_solide_ + indic_arete * (mu_fluide_ - mu_solide_);
+        }
+        break;
+      case 2: // Harmonic average
+        {
+          myViscLam = (mu_solide_ * mu_fluide_) / (mu_fluide_ - indic_arete * (mu_fluide_ - mu_solide_));
 
+        }
+        break;
+      default:
+        {
+          Cerr << "The method specified for formule_mu in not recognized. \n" << finl;
+          Cerr << "you can choose : standard, arithmetic or harmonic. \n" << finl;
+          //Cerr << "We should not be here Navier_Stokes_FT_Disc::FT_disc_calculer_champs_rho_mu_nu_dipha" << finl;
+          Process::exit();
+        }
+
+      }
+    return myViscLam;
+    // fin EB
+  }
   // These methods will be overloaded in DIFT operators (See Eval_Dift_VDF_const_Elem for example ...)
   inline int get_ind_Fluctu_Term() const { return 0; }
   inline double get_dv_mvol(const int i) const { throw; } /* seulement pour K-Eps */
@@ -108,6 +178,13 @@ protected:
   REF(Probleme_base) ref_probleme_;
   REF(Champ_base) ref_diffusivite_;
   DoubleTab tab_diffusivite_, tab_alpha_;
+  DoubleTab indicatrice_elem_;
+  DoubleVect indicatrice_arete_;
+
+  double mu_solide_;
+  double mu_fluide_;
+  int 	 formule_mu_;
+  int   is_solid_particle_=0;
 };
 
 #endif /* Eval_Diff_VDF_included */

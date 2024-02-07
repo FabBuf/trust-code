@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -61,6 +61,7 @@ Entree& Turbulence_paroi::readOn(Entree& s)
 
   //  les operateurs de diffusion sont communs aux discretisations VEF et VEFP1B
   if (discr == "VEFPreP1B") discr = "VEF";
+  if (discr=="VDF+") discr="VDF"; // EB
   typ += discr;
 
   Cerr << "et typage :" << typ << finl;

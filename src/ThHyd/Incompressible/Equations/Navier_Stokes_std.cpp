@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -37,7 +37,7 @@
 #include <MD_Vector_tools.h>
 #include <TRUSTTab_parts.h>
 #include <Domaine_VF.h>
-
+#include <Param.h>
 Implemente_instanciable_sans_constructeur(Navier_Stokes_std,"Navier_Stokes_standard",Equation_base);
 
 Navier_Stokes_std::Navier_Stokes_std():methode_calcul_pression_initiale_(0),div_u_nul_et_non_dsurdt_divu_(0),postraitement_gradient_P_(0)
@@ -185,6 +185,7 @@ int Navier_Stokes_std::lire_motcle_non_standard(const Motcle& mot, Entree& is)
               type+= "_";
             }
           Nom discr=discretisation().que_suis_je();
+          if (discr=="VDF+") discr="VDF"; // EB
           if (discr == "VEFPreP1B")
             discr = "VEF";
           type+=discr;
@@ -312,6 +313,7 @@ void Navier_Stokes_std::completer()
       Cerr << "Centrifuge force term creation for Axi case."<< finl;
       Nom type_so = "Force_Centrifuge_";
       Nom disc = discretisation().que_suis_je();
+      if (disc=="VDF+") disc="VDF"; // EB
       Nom champ = inconnue()->que_suis_je();
       champ.suffix("Champ_");
       type_so+=disc;

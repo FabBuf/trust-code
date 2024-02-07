@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -35,6 +35,27 @@ static int faces_sommets_hexa[6][4] =
   { 2, 3, 6, 7 },
   { 4, 5, 6, 7 }
 };
+
+// EB
+// On trie les aretes de la manieres suivante
+// On construit successivement les aretes x,y,z des sommets 0, 3, 5, 6
+//                   _________2_________
+//		    /|		      / |
+//		   / . 		     /	|
+//		 10  |		    /1	|
+//		 /   .9  	   /	|
+//		/____|____11______/     | 0
+//		|    |		  |     |
+//		|    .		  |	|
+//		|    |------------|-----|
+//	       3|         8       |6   /       z
+//		|  /		  |   /	       ^  y
+//		| /4		  |  /7        | /
+//		|/         	  | /          |/
+//              |_________________|/	        ----->x
+//                      5
+
+
 
 Implemente_instanciable(Hexaedre,"Hexaedre",Elem_geom_base);
 

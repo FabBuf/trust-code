@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -650,6 +650,28 @@ int Equation_base::limpr() const
   return le_schema_en_temps->limpr();
 }
 
+// EB
+// Description:
+//     Demande au schema en temps si il faut effectuer une impression des donnees du fpi
+//     Renvoie 1 si il faut effectuer une impression.
+//     Appel simple a Schema_Temps_base::limpr_fpi()
+// Precondition:
+// Parametre:
+//    Signification:
+//    Valeurs par defaut:
+//    Contraintes:
+//    Acces:
+// Retour: int
+//    Signification: 1 si il faut effectuer une impression, 0 sinon.
+//    Contraintes:
+// Exception:
+// Effets de bord:
+// Postcondition: la methode ne modifie pas l'objet.
+int Equation_base::limpr_fpi() const
+{
+  return le_schema_en_temps->limpr_fpi();
+}
+
 /*! @brief Imprime les operateurs de l'equation sur un flot de sortie, de facon inconditionnelle.
  *
  *     appelle Operateur_base::impr(os)
@@ -666,6 +688,15 @@ int Equation_base::impr(Sortie& os) const
   return 1;
 }
 
+// EB
+/*! @brief Imprime les tableaux d'interet pour le module "fluid_particle_interaction"
+ *
+ */
+int Equation_base::impr_fpi(Sortie& os) const
+{
+  return 1;
+}
+
 /*! @brief Imprime les operateurs de l'equation si le schema en temps indique que c'est necessaire.
  *
  *      [SI limpr() ALORS impr(os)]
@@ -677,6 +708,8 @@ void Equation_base::imprimer(Sortie& os) const
   ecrire_fichier_xyz();
   if (limpr() )
     impr(os);
+  if (limpr_fpi())
+    impr_fpi(os);
 }
 
 /*! @brief Returns the time derivative of the unknown I of the equation: dI/dt = M-1*(sum(operators(I) + sources))
@@ -1853,7 +1886,7 @@ void Equation_base::Gradient_conjugue_diff_impl(DoubleTrav& secmem, DoubleTab& s
             p *= (prodrz_new / prodrz_old);
             p -= z;
             prodrz_old = prodrz_new;
-            // On previent si convergence anormalement longue sur de tres gros cas
+            // On previent si convergence anormalement intue sur de tres gros cas
             if (niter == 100)
               {
                 Cout

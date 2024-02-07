@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -18,7 +18,7 @@
 
 #include <type_traits>
 
-enum class Type_Flux_Arete { FLUIDE, BORD, COIN_FLUIDE, INTERNE, MIXTE, PERIODICITE, PAROI_FLUIDE, PAROI, NAVIER_PAROI, NAVIER_FLUIDE, NAVIER };
+enum class Type_Flux_Arete { FLUIDE, BORD, COIN_FLUIDE, INTERNE, MIXTE, PERIODICITE, PAROI_FLUIDE, PAROI, NAVIER_PAROI, NAVIER_FLUIDE, NAVIER, INTERNE_FT }; // EB : INTERNE_FT : calcul du flux aux aretes internes avec une viscosite calcule par une indicatrice aux aretes
 
 enum class Type_Flux_Fa7 { ELEM, SORTIE_LIBRE };
 

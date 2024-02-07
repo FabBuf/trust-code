@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2022, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -98,6 +98,103 @@ void Aretes::affecter(int& numero_a, int dir, int type, int nb_face,
     }
 }
 
+// debut EB
+// Je ne prends pas la liberte de modifier les return de la fonction Aretes::void Aretes::affecter(int& numero_a, int dir, int type, int nb_face,
+// int f1, int f2, int f3, int f4, const ArrOfInt& est_une_plaque)
+// Les return de cette fonction indique si l'arete numero_a a ete creee ou non
+// Cela est utile pour remplir les tableaux Aretes_Som et Elem_Aretes de Zone_VDF_plus::genere_et_cree_aretes
+/*! @brief affecte a l'arete numero les faces f1, f2, f3, f4
+ *
+ *  l'arete est de type2_ type ou :
+ *  type2_ = -1 si arete coin
+ *  type2_ = 0 si arete bord
+ *  type2_ = 1 si arete mixte
+ *  type2_ = 2 si arete interne
+ *  l'arete est de type1_ dir ou :
+ *  type1_ = 0 si arete XY
+ *  type1_ = 1 si arete XZ
+ *  type1_ = 2 si arete YZ
+ *  En dimension 2 il n'y a que des aretes XY
+ *
+ *  @return renvoie 0 si l'arete n'a pas ete creee et 1 si l'arete a ete creee
+ */
+int Aretes::affecter_aretes(int& numero_a, int dir, int type, int nb_face,
+                            int f1, int f2, int f3, int f4, const ArrOfInt& est_une_plaque)
+{
+  int nb_plaques = 0;
+  nb_plaques += f1>=0 ? est_une_plaque(f1) : 0;
+  nb_plaques += f2>=0 ? est_une_plaque(f2) : 0;
+  nb_plaques += f3>=0 ? est_une_plaque(f3) : 0;
+  nb_plaques += f4>=0 ? est_une_plaque(f4) : 0;
+  int coin = -1 ;
+  int bord = 0 ;
+  if (type>0)
+    {
+      if (nb_plaques!=0) return 0;
+      if( (f1<nb_face) || (f2<nb_face) || (f3<nb_face) || (f4<nb_face) )
+        numero_a++;
+      else
+        return 0;
+    }
+  if (type==bord)
+    {
+      if( (f1<nb_face) || (f2<nb_face) || (f3<nb_face) )
+        numero_a++;
+      else
+        return 0;
+    }
+  if (type==coin)
+    {
+      if( (f1<nb_face) && (f2<nb_face) && (f3<nb_face) && (f4<nb_face) )
+        numero_a++;
+      else
+        return 0;
+    }
+
+  faces_(numero_a, 0)=f1;
+  faces_(numero_a, 1)=f2;
+  faces_(numero_a, 2)=f3;
+  faces_(numero_a, 3)=f4;
+  type1_(numero_a)=dir;
+  type2_(numero_a)=type;
+
+  if(type >0)
+    {
+      assert(faces_(numero_a, 0) !=-1);
+      assert(faces_(numero_a, 1) !=-1);
+      assert(faces_(numero_a, 2) !=-1);
+      assert(faces_(numero_a, 3) !=-1);
+    }
+
+  return 1;
+}
+/*! @brief affecte a l'arete virtuelle numero_a les faces f1, f2, f3, f4 ainsi que l'orientation (type1_) et le type (type2_)
+ *
+ *
+ */
+int Aretes::affecter_aretes_virtuelle(int& numero_a, int dir, int type, int nb_face,
+                                      int f1, int f2, int f3, int f4)
+{
+
+  numero_a++;
+  faces_(numero_a, 0)=f1;
+  faces_(numero_a, 1)=f2;
+  faces_(numero_a, 2)=f3;
+  faces_(numero_a, 3)=f4;
+  type1_(numero_a)=dir;
+  type2_(numero_a)=type;
+
+  if(type >0)
+    {
+      assert(faces_(numero_a, 0) !=-1);
+      assert(faces_(numero_a, 1) !=-1);
+      assert(faces_(numero_a, 2) !=-1);
+      assert(faces_(numero_a, 3) !=-1);
+    }
+
+  return 1;
+}
+// fin EB
 void Aretes::calculer_centre_de_gravite(Domaine_VDF& domaine)
 {
   const IntTab& so = domaine.face_sommets();
@@ -290,6 +387,41 @@ void Aretes::swap(int a1, int a2)
   type2_(a1)=type2_(a2);
   type2_(a2)=tmp;
 }
+
+// EB
+/*! @brief appelee par trier Echange les aretes a1 et a2 de Aretes_Som
+ *
+ */
+void Aretes::swap_Aretes_Som(int a1, int a2, IntTab& Aretes_Som)
+{
+  int tmp;
+  tmp = Aretes_Som(a1, 0);
+  Aretes_Som(a1, 0) = Aretes_Som(a2, 0);
+  Aretes_Som(a2, 0)=tmp;
+
+  tmp = Aretes_Som(a1, 1);
+  Aretes_Som(a1, 1) = Aretes_Som(a2, 1);
+  Aretes_Som(a2, 1)=tmp;
+
+}
+// EB
+/*! @brief appelee par trier Echange les aretes a1 et a2 de Elem_Aretes
+ *
+ */
+void Aretes::swap_Elem_Arete(int a1, int a2, IntTab& Elem_Aretes)
+{
+  const int nb_aretes_elem=Elem_Aretes.dimension(1);
+  const int nb_elem_tot=Elem_Aretes.dimension_tot(0);
+  for (int elem=0; elem<nb_elem_tot; elem++)
+    {
+      for (int j=0; j<nb_aretes_elem; j++)
+        {
+          if (Elem_Aretes(elem,j)==a1) Elem_Aretes(elem,j)=a2;
+          else if (Elem_Aretes(elem,j)==a2) Elem_Aretes(elem,j)=a1;
+        }
+    }
+}
+
 /*! @brief reoordonne le tableaux des aretes avec d'abord les aretes coins (elles n'ont que deux faces)
  *
  *  puis les aretes bord (elles ont trois faces dont deux de bord)
@@ -392,6 +524,138 @@ void Aretes::trier(int& nb_aretes_coin, int& nb_aretes_bord,
     }
 }
 
+// debut EB
+/*! @brief reoordonne le tableaux des aretes avec d'abord les aretes coins (elles n'ont que deux faces)
+ *
+ *  puis les aretes bord (elles ont trois faces dont deux de bord)
+ *  puis les aretes mixte (elles ont quatre faces dont deux de bord)
+ *  puis les aretes_internes (elles ont quatre faces internes)
+ *
+ *  La procedure est appliquee aux tableaux faces_, type1_, type2_, Aretes_Som, Elem_Aretes
+ */
+void Aretes::trier(int& nb_aretes_coin, int& nb_aretes_bord,
+                   int& nb_aretes_mixte, int& nb_aretes_interne, const int nb_aretes_reelles,
+                   const int nb_elem_reels,
+                   IntTab& Aretes_Som, IntTab& Elem_Aretes)
+{
+  //IntVect nouveau_num_aretes(Aretes_Som.dimension(0));
+  IntVect nouveau_num_aretes(nb_aretes_reelles);
+  nouveau_num_aretes=-1;
+  IntTab copie_Elem_Aretes=Elem_Aretes;
+  const int nb_aretes=nb_aretes_reelles;
+  Cerr << "nb_aretes " << nb_aretes << finl;
+
+  //const int nb_elem_tot=Elem_Aretes.dimension_tot(0);
+  nb_aretes_coin=nb_aretes_bord=nb_aretes_mixte=nb_aretes_interne=0;
+  int coin = -1 ;
+  int bord = 0 ;
+  int mixte = 1 ;
+  int interne = 2 ;
+  int courante=0;
+  int arete;
+  while( (courante<nb_aretes)&&(type2_(courante)==coin) )
+    {
+      courante++;
+      nb_aretes_coin++;
+    }
+  for(arete=courante; arete<nb_aretes; arete++)
+    {
+      if(type2_(arete)==coin)
+        {
+          swap(arete, courante);
+          swap_Aretes_Som(arete,courante,Aretes_Som);
+          swap_Elem_Arete(arete,courante,Elem_Aretes);
+          while( (courante<nb_aretes)&&(type2_(courante)==coin) )
+            {
+              courante++;
+              nb_aretes_coin++;
+            }
+          //arete=courante;
+        }
+    }
+  while( (courante<nb_aretes)&&(type2_(courante)==bord) )
+    {
+      courante++;
+      nb_aretes_bord++;
+    }
+  for(arete=courante; arete<nb_aretes; arete++)
+    {
+      if(type2_(arete)==bord)
+        {
+          swap(arete, courante);
+          swap_Aretes_Som(arete,courante,Aretes_Som);
+          swap_Elem_Arete(arete,courante,Elem_Aretes);
+          assert(type2_(courante) == bord);
+          while( (courante<nb_aretes)&&(type2_(courante)==bord) )
+            {
+              courante++;
+              nb_aretes_bord++;
+            }
+          //arete=courante;
+        }
+    }
+  while( (courante<nb_aretes)&&(type2_(courante)==mixte) )
+    {
+      courante++;
+      nb_aretes_mixte++;
+    }
+  for(arete=courante; arete<nb_aretes; arete++)
+    {
+      if(type2_(arete)==mixte)
+        {
+          swap(arete, courante);
+          swap_Aretes_Som(arete,courante,Aretes_Som);
+          swap_Elem_Arete(arete,courante,Elem_Aretes);
+          assert(faces_(courante, 0) !=-1);
+          assert(faces_(courante, 1) !=-1);
+          assert(faces_(courante, 2) !=-1);
+          assert(faces_(courante, 3) !=-1);
+          while( (courante<nb_aretes)&&(type2_(courante)==mixte) )
+            {
+              courante++;
+              nb_aretes_mixte++;
+            }
+          //arete=courante;
+        }
+    }
+  while( (courante<nb_aretes)&&(type2_(courante)==interne) )
+    {
+      courante++;
+      nb_aretes_interne++;
+    }
+  for(arete=courante; arete<nb_aretes; arete++)
+    {
+      if(type2_(arete)==interne)
+        {
+          swap(arete, courante);
+          swap_Aretes_Som(arete,courante,Aretes_Som);
+          swap_Elem_Arete(arete,courante,Elem_Aretes);
+          assert(faces_(courante, 0) !=-1);
+          assert(faces_(courante, 1) !=-1);
+          assert(faces_(courante, 2) !=-1);
+          assert(faces_(courante, 3) !=-1);
+          while( (courante<nb_aretes)&&(type2_(courante)==interne) )
+            {
+              courante++;
+              nb_aretes_interne++;
+            }
+          //arete=courante;
+        }
+    }
+  /*
+  for (int elem=0; elem<nb_elem_tot; elem++)
+    {
+      for (int j=0; j<12; j++)
+        {
+          int ancienne_arete=copie_Elem_Aretes(elem,j);
+          int nouvelle_arete=nouveau_num_aretes(ancienne_arete);
+          if (nouvelle_arete>=0 && ancienne_arete<nb_aretes) Elem_Aretes(elem,j)=nouvelle_arete;
+        }
+    }
+    */
+}
+
+// fin EB
 void Aretes::trier_pour_debog(int& nb_aretes_coin, int& nb_aretes_bord,
                               int& nb_aretes_mixte, int& nb_aretes_interne,const DoubleTab&
                               xv)

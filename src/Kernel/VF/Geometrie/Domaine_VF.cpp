@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -25,6 +25,7 @@
 #include <MD_Vector_base.h>
 #include <Analyse_Angle.h>
 #include <Linear_algebra_tools_impl.h>
+// #include <Modele_Collision_FT.h> // EB
 #include <Device.h>
 #include <medcoupling++.h>
 #ifdef MEDCOUPLING_
@@ -578,6 +579,48 @@ const IntTab& Domaine_VF::face_virt_pe_num() const
   return face_virt_pe_num_;
 }
 
+// debut EB
+IntTab  Domaine_VF::set_arete_virt_pe_num(int na, int na_tot) // EB
+{
+  int i;
+  Cerr << "Domaine_VF::set_arete_virt_pe_num" << finl;
+
+  IntTab tmp (na_tot,2);
+  creer_tableau_aretes(tmp,Array_base::NOCOPY_NOINIT);
+  tmp=-1;
+  const int moi = Process::me();
+  for (i = 0; i < na; i++)
+    {
+      tmp(i, 0) = moi;
+      tmp(i, 1) = i;
+    }
+  tmp.echange_espace_virtuel();
+  return tmp;
+}
+void Domaine_VF::construire_arete_virt_pe_num(int na, int na_tot, IntTab& tmp)
+{
+  Cerr << "Domaine_VF::construire_arete_virt_pe_num" << finl;
+  const int nb_aretes_virt=na_tot-na;
+
+  // On copie la partie virtuelle de tmp dans arete_virt_pe_num_
+  arete_virt_pe_num_.resize(nb_aretes_virt,2);
+  int i,index;
+  for (i=na; i<na_tot; i++)
+    {
+      index=i-na;
+      arete_virt_pe_num_(index,0)=tmp(i,0);
+      arete_virt_pe_num_(index,1)=tmp(i,1);
+    }
+
+
+}
+const IntTab& Domaine_VF::arete_virt_pe_num() const // EB
+{
+  assert(arete_virt_pe_num_.dimension(1) == 2);
+  return arete_virt_pe_num_;
+}
+// fin EB
+
 /*! @brief Compute the normalized boundary outward vector associated to the face global_face_number and eventually scaled by scale_factor
  *
  */
@@ -627,6 +670,17 @@ DoubleTab Domaine_VF::normalized_boundaries_outward_vector(int global_face_numbe
 void Domaine_VF::marquer_faces_double_contrib(const Conds_lim& conds_lim)
 {
   Journal() << " Domaine_VF::marquer_faces_double_contrib" << finl;
+  static int iteration=0;
+  if (iteration==1)
+    {
+      faces_doubles_pe_num_.resize(nb_faces(),2); // EB : faces_doubles_virt_(i,0) : numero du PE possedant la face double i, faces_doubles_virt_(i,1) : numero locale de cette face sur le pe
+      // on cree un autre tableau pour les faces virtuelles car on va "casser" le premier au niveau des faces doubles avec l'echange_espace_virtuel...
+      faces_doubles_virt_pe_num_.resize(nb_faces(),4); // dans ce tableau, on ne s'interesse qu'aux faces virtuelles
+      const MD_Vector& md = md_vector_faces();
+      MD_Vector_tools::creer_tableau_distribue(md,faces_doubles_virt_pe_num_);
+      faces_doubles_virt_pe_num_=-1; // EB
+    }
+
   // marquage des faces periodiques
   ////////////////////////////////////////////////
 
@@ -663,6 +717,7 @@ void Domaine_VF::marquer_faces_double_contrib(const Conds_lim& conds_lim)
   for(int njoint=0; njoint<nbjoints; njoint++)
     {
       const Joint& joint_temp = joint(njoint);
+      const int pe_voisin = joint_temp.PEvoisin(); // EB
       const IntTab& indices_faces_joint = joint_temp.joint_item(Joint::FACE).renum_items_communs();
       const int nbfaces = indices_faces_joint.dimension(0);
       for (int j = 0; j < nbfaces; j++)
@@ -674,8 +729,123 @@ void Domaine_VF::marquer_faces_double_contrib(const Conds_lim& conds_lim)
           // joint.num_premiere_face() retourne -1 desormais pour detecter les anciens codages.
           int face_de_joint = indices_faces_joint(j, 1);
           faces_doubles_[face_de_joint] = 1;
+          if (iteration==1)
+            {
+              faces_doubles_pe_num_(face_de_joint,0)=pe_voisin;
+              faces_doubles_pe_num_(face_de_joint,1)= indices_faces_joint(j, 0);
+
+              // On ne s'interesse qu'a la partie virtuelle de faces_doubles_virt_pe_num_
+              // APRES l'echange espace virtuel
+              faces_doubles_virt_pe_num_(face_de_joint,0)=pe_voisin;
+              faces_doubles_virt_pe_num_(face_de_joint,1)= indices_faces_joint(j, 0);
+              faces_doubles_virt_pe_num_(face_de_joint,2)= Process::me();
+              faces_doubles_virt_pe_num_(face_de_joint,3)= face_de_joint;
+            }
         }
     }
+
+  if (iteration==1) faces_doubles_virt_pe_num_.echange_espace_virtuel();
+
+
+  iteration++;
+}
+
+void Domaine_VF::marquer_aretes_multiple_contrib(const Conds_lim& conds_lim)
+{
+
+  Journal() << " Domaine_VF::marquer_aretes_multiple_contrib" << finl;
+  const int na_tot=domaine().nb_aretes_tot();
+
+  aretes_multiples_.resize(na_tot);
+  creer_tableau_aretes(aretes_multiples_,Array_base::NOCOPY_NOINIT);
+  aretes_multiples_=0;
+  aretes_multiples_pe_num_.resize(domaine().nb_aretes(),6);
+  aretes_multiples_pe_num_=-1;
+
+  //const int na=zone().nb_aretes();
+
+  //const int nb_aretes_virt=na_tot-na;
+  aretes_multiples_virt_pe_num_.resize(na_tot,8);
+  creer_tableau_aretes(aretes_multiples_virt_pe_num_,Array_base::NOCOPY_NOINIT);
+  aretes_multiples_virt_pe_num_=-1;
+  // marquage des aretes items communs
+  ////////////////////////////////////////////////
+  Domaine_VF& dvf = ref_cast(Domaine_VF,*this); // EB
+  Joints& joints=dvf.domaine().faces_joint();
+  const int nbjoints = joints.size();
+
+  for(int njoint=0; njoint<nbjoints; njoint++)
+    {
+      const Joint& joint     = joints[njoint];
+      const int pe_voisin = joint.PEvoisin(); // EB
+      const IntTab& indices_aretes_joint = joint.joint_item(Joint::ARETE).renum_items_communs(); // ne contient PAS la zone de joint, uniquement les aretes communes entre 2 procs
+      const int nbaretes = indices_aretes_joint.dimension(0);
+      for (int j = 0; j < nbaretes; j++)
+        {
+          int arete_de_joint = indices_aretes_joint(j, 1);
+          aretes_multiples_(arete_de_joint)+=1;
+
+          if (aretes_multiples_(arete_de_joint)==1)
+            {
+              aretes_multiples_pe_num_(arete_de_joint,0) = pe_voisin;
+              aretes_multiples_pe_num_(arete_de_joint,1) = indices_aretes_joint(j, 0);
+              aretes_multiples_virt_pe_num_(arete_de_joint,0) = pe_voisin;
+              aretes_multiples_virt_pe_num_(arete_de_joint,1) = indices_aretes_joint(j, 0);
+            }
+          else if (aretes_multiples_(arete_de_joint)==2)
+            {
+              aretes_multiples_pe_num_(arete_de_joint,2)=pe_voisin;
+              aretes_multiples_pe_num_(arete_de_joint,3)= indices_aretes_joint(j, 0);
+              aretes_multiples_virt_pe_num_(arete_de_joint,2)=pe_voisin;
+              aretes_multiples_virt_pe_num_(arete_de_joint,3)= indices_aretes_joint(j, 0);
+            }
+          else if (aretes_multiples_(arete_de_joint)==3)
+            {
+              aretes_multiples_pe_num_(arete_de_joint,4)=pe_voisin;
+              aretes_multiples_pe_num_(arete_de_joint,5)= indices_aretes_joint(j, 0);
+              aretes_multiples_virt_pe_num_(arete_de_joint,4)=pe_voisin;
+              aretes_multiples_virt_pe_num_(arete_de_joint,5)= indices_aretes_joint(j, 0);
+            }
+          aretes_multiples_virt_pe_num_(arete_de_joint,6) = Process::me();
+          aretes_multiples_virt_pe_num_(arete_de_joint,7) = arete_de_joint;
+
+        }
+    }
+
+  aretes_multiples_virt_pe_num_.echange_espace_virtuel();
+  aretes_multiples_.echange_espace_virtuel();
+  /*
+  IntTab tab_aretes;
+  tab_aretes.resize(na_tot);
+  Cerr << "domaine().nb_aretes() " << domaine().nb_aretes() << finl;
+  creer_tableau_aretes(tab_aretes,Array_base::NOCOPY_NOINIT);
+  tab_aretes=0;
+  for (int arete=0; arete<zone().nb_aretes(); arete++)
+    {
+      if (aretes_multiples_(arete)>0) tab_aretes(arete)=1;
+    }
+  MD_Vector_tools::echange_espace_virtuel(tab_aretes,MD_Vector_tools::EV_SOMME_ECHANGE);
+  for (int arete=0; arete<na_tot; arete++)
+    {
+      if (tab_aretes(arete)>0)
+        {
+          Cerr << "arete " << arete << " tab_aretes(arete) " << tab_aretes(arete) << " de cg " << xa(arete,0) << " " << xa(arete,1) << " " << xa(arete,2) <<
+               "\tpe0 " << aretes_multiples_virt_pe_num_(arete,0)  <<
+               " pe1 " << aretes_multiples_virt_pe_num_(arete,2)  <<
+               " pe2 " << aretes_multiples_virt_pe_num_(arete,4)  <<
+               " pe3 " <<aretes_multiples_virt_pe_num_(arete,6) << finl;
+        }
+    }
+  Process::exit();
+  */
+  /*
+  int i,index;
+  for (i=na; i<na_tot; i++)
+    {
+      index=i-na;
+      for (int j=0; j<8; j++)  aretes_multiples_virt_pe_num_(index,j)=tmp(i,j);
+    }
+  */
 }
 
 void Domaine_VF::infobord()

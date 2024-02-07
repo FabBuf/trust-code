@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2022, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -21,7 +21,8 @@
 #include <arch.h>
 
 int search_connex_components_local(const IntTab& elem_faces, const IntTab& faces_elem, IntVect& num_compo);
+int search_connex_components_local(const IntTab& elem_faces, const IntTab& faces_elem, DoubleTab& num_compo); // EB On sauvegarde num_compo et on le sort dans les latas. On a besoin d'un DoubleTab pour num_compo (pas de Champ_Fonc tel que .valeurs() renvoie un IntTab)
 int compute_graph_connex_components(const IntTab& graph, ArrOfInt& connex_components);
 int compute_global_connex_components(IntVect& num_compo, int nb_local_components);
-
+int compute_global_connex_components(DoubleTab& num_compo, int nb_local_components); // EB idem
 #endif

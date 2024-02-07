@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -44,8 +44,48 @@ public:
     completer_impl<Type_Operateur::Op_DIFT_FACE, Eval_Dift_VDF_Face>();
     associer_pb<Eval_Dift_VDF_Face>(equation().probleme());
   }
+  inline void associer_indicatrices(const DoubleTab& indic_elem, const DoubleVect& indic_arete) override// EB
+  {
+    Eval_Dift_VDF_Face& eval_diff_turb = dynamic_cast<Eval_Dift_VDF_Face&> (iter->evaluateur());
+    eval_diff_turb.associer_indicatrices(indic_elem,indic_arete);
+  }
+  // EB
+  inline void associer_proprietes_fluide(const int formule_mu, const double mu_particule, const double mu_fluide) override// EB
+  {
+    Eval_Dift_VDF_Face& eval_diff_turb = dynamic_cast<Eval_Dift_VDF_Face&> (iter->evaluateur());
+    eval_diff_turb.associer_proprietes_fluide(formule_mu,mu_particule,mu_fluide);
+  }
 };
 
+// ===========================================================================================================================================
+class Op_Dift_VDF_Face_FT : public Op_Dift_VDF_Face_base, public Op_Diff_Dift_VDF<Op_Dift_VDF_Face_FT>
+{
+  Declare_instanciable_sans_constructeur(Op_Dift_VDF_Face_FT);
+
+public:
+  Op_Dift_VDF_Face_FT();
+  inline void completer() override
+  {
+    completer_impl<Type_Operateur::Op_DIFT_FACE,Eval_Dift_VDF_Face_FT>();
+    associer_pb<Eval_Dift_VDF_Face_FT>(equation().probleme());
+  }
+  inline void associer(const Domaine_dis& dd, const Domaine_Cl_dis& dcd, const Champ_Inc& ch) override { associer_impl<Type_Operateur::Op_DIFT_FACE,Eval_Dift_VDF_Face_FT>(dd,dcd,ch); }
+  inline void associer_diffusivite_turbulente(const Champ_Fonc& ch) { associer_diffusivite_turbulente_impl<Type_Operateur::Op_DIFT_FACE,Eval_Dift_VDF_Face_FT>(ch); }
+  inline void associer_diffusivite(const Champ_base& ch) override { associer_diffusivite_impl<Eval_Dift_VDF_Face_FT>(ch); }
+  inline const Champ_base& diffusivite() const override { return diffusivite_impl<Eval_Dift_VDF_Face_FT>(); }
+  inline void associer_indicatrices(const DoubleTab& indic_elem, const DoubleVect& indic_arete) override// EB
+  {
+    Eval_Dift_VDF_Face_FT& eval_diff_turb = dynamic_cast<Eval_Dift_VDF_Face_FT&> (iter->evaluateur());
+    eval_diff_turb.associer_indicatrices(indic_elem,indic_arete);
+  }
+  // EB
+  inline void associer_proprietes_fluide(const int formule_mu, const double mu_particule, const double mu_fluide) override// EB
+  {
+    Eval_Dift_VDF_Face_FT& eval_diff_turb = dynamic_cast<Eval_Dift_VDF_Face_FT&> (iter->evaluateur());
+    eval_diff_turb.associer_proprietes_fluide(formule_mu,mu_particule,mu_fluide);
+  }
+};
+// fin EB
 // ===========================================================================================================================================
 
 class Op_Dift_VDF_Face_Axi : public Op_Dift_VDF_Face_Axi_base

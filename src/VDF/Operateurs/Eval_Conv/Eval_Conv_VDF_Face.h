@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -41,24 +41,28 @@ public:
   flux_fa7(const DoubleTab&, const DoubleTab*,int, int, int, Type_Double& ) const;
 
   template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE, void>
-  flux_arete(const DoubleTab&, const DoubleTab*, int, int, int, int, Type_Double& ) const ;
+  flux_arete(const DoubleTab&, const DoubleTab*, int, int, int, int, int, Type_Double& ) const ;
+
+  template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE_FT, void>
+  flux_arete(const DoubleTab&, const DoubleTab*, int, int, int, int, int, Type_Double& ) const  {/* do nothing */}
+
 
   template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::MIXTE, void>
-  flux_arete(const DoubleTab&, const DoubleTab*,int, int, int, int, Type_Double& ) const ;
+  flux_arete(const DoubleTab&, const DoubleTab*, int, int, int, int, int, Type_Double& ) const ;
 
   template<Type_Flux_Arete Arete_Type, typename Type_Double>
   inline std::enable_if_t<(Arete_Type == Type_Flux_Arete::PAROI || Arete_Type == Type_Flux_Arete::NAVIER || Arete_Type == Type_Flux_Arete::NAVIER_PAROI), void>
-  flux_arete(const DoubleTab&, const DoubleTab*,int, int, int, int, Type_Double& ) const { /* do nothing */ }
+  flux_arete(const DoubleTab&, const DoubleTab*, int, int, int, int, int, Type_Double& ) const { /* do nothing */ }
 
   template<Type_Flux_Arete Arete_Type, typename Type_Double>
   inline std::enable_if_t<Arete_Type == Type_Flux_Arete::FLUIDE || Arete_Type == Type_Flux_Arete::NAVIER_FLUIDE || Arete_Type == Type_Flux_Arete::PAROI_FLUIDE, void>
-  flux_arete(const DoubleTab&, const DoubleTab*,int, int, int, int, Type_Double&, Type_Double& ) const;
+  flux_arete(const DoubleTab&, const DoubleTab*, int, int, int, int, int, Type_Double&, Type_Double& ) const;
 
   template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::PERIODICITE, void>
-  flux_arete(const DoubleTab&, const DoubleTab*, int, int, int, int, Type_Double&, Type_Double& ) const ;
+  flux_arete(const DoubleTab&, const DoubleTab*, int, int, int, int, int, Type_Double&, Type_Double& ) const ;
 
   template<Type_Flux_Arete Arete_Type, typename Type_Double> inline std::enable_if_t< Arete_Type == Type_Flux_Arete::COIN_FLUIDE, void>
-  flux_arete(const DoubleTab&, const DoubleTab*, int, int, int, int, Type_Double&, Type_Double&) const;
+  flux_arete(const DoubleTab&, const DoubleTab*, int, int, int, int, int, Type_Double&, Type_Double&) const;
 
   /* ************************************** *
    * *********  POUR L'IMPLICITE ********** *
@@ -71,16 +75,16 @@ public:
   coeffs_fa7(const DoubleTab*, int, int, int, Type_Double& , Type_Double& ) const;
 
   template<Type_Flux_Arete Arete_Type, typename Type_Double>
-  inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE || Arete_Type == Type_Flux_Arete::MIXTE || Arete_Type == Type_Flux_Arete::PERIODICITE, void>
-  coeffs_arete(const DoubleTab*, int, int, int, int, Type_Double& , Type_Double& ) const;
+  inline std::enable_if_t< Arete_Type == Type_Flux_Arete::INTERNE || Arete_Type == Type_Flux_Arete::INTERNE_FT || Arete_Type == Type_Flux_Arete::MIXTE || Arete_Type == Type_Flux_Arete::PERIODICITE, void>
+  coeffs_arete(const DoubleTab*, int, int, int, int, int, Type_Double& , Type_Double& ) const;
 
   template<Type_Flux_Arete Arete_Type, typename Type_Double>
   inline std::enable_if_t< Arete_Type == Type_Flux_Arete::FLUIDE || Arete_Type == Type_Flux_Arete::NAVIER_FLUIDE || Arete_Type == Type_Flux_Arete::PAROI_FLUIDE || Arete_Type == Type_Flux_Arete::COIN_FLUIDE, void>
-  coeffs_arete(const DoubleTab*, int, int, int, int, Type_Double& , Type_Double& , Type_Double& ) const;
+  coeffs_arete(const DoubleTab*, int, int, int, int, int, Type_Double& , Type_Double& , Type_Double& ) const;
 
   template<Type_Flux_Arete Arete_Type, typename Type_Double> inline
   std::enable_if_t<(Arete_Type == Type_Flux_Arete::PAROI || Arete_Type == Type_Flux_Arete::NAVIER || Arete_Type == Type_Flux_Arete::NAVIER_PAROI), void>
-  coeffs_arete(const DoubleTab*, int, int, int, int, Type_Double& , Type_Double& , Type_Double& ) const { /* do nothing */ }
+  coeffs_arete(const DoubleTab*, int, int, int, int, int, Type_Double& , Type_Double& , Type_Double& ) const { /* do nothing */ }
 
 private:
   template <typename Type_Double>
