@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2023, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -103,6 +103,8 @@ public:
   inline int nb_som_elem() const;
   inline int nb_faces_elem(int=0) const ;
   inline int sommet_elem(int , int ) const;
+  ArrOfInt& chercher_elements_FT(const DoubleTab& ,ArrOfInt& ,int reel=0) const; // EB cache reset a chaque iteration, sinon il explose en multi-particules (lits fluidises)
+  void reset_cache_elem_pos_FT() const; // EB
 
   ///
   /// Aretes
@@ -110,6 +112,7 @@ public:
   inline int nb_aretes() const;
   inline int nb_aretes_tot() const;
   void creer_aretes();
+  void creer_structure_parallelle_aretes(const int nb_aretes_reelles, IntTab& Aretes_som, IntTab& Elem_Aretes); // EB
 
   ///
   /// Faces
@@ -332,6 +335,12 @@ public:
   virtual const MD_Vector& md_vector_elements() const;
   static int identifie_item_unique(IntList& item_possible, DoubleTab& coord_possible, const DoubleVect& coord_ref);
 
+  //Extraire surface on a mobile boundary (deformable domaine, like ALE)
+  inline void setLes_elems_extrait_surf_ref(const IntTab&) ;
+  inline IntTab getLes_elems_extrait_surf_ref() const;
+  inline void setExtrait_surf_dom_deformable(bool) ;
+  inline bool getExtrait_surf_dom_deformable() const;
+
 protected:
   // Domaine name
   Nom nom_;
@@ -362,6 +371,7 @@ protected:
   // (voir Domaine::init_faces_virt_bord())
   ArrOfInt ind_faces_virt_bord_; // contient les indices des faces virtuelles de bord
 
+  Joints mes_aretes_joint; // EB
   // L'octree est mutable: on le construit a la volee lorsqu'il est utilise dans les methodes const
   mutable DERIV(OctreeRoot) deriv_octree_;
   ArrOfDouble cg_moments_;
@@ -394,6 +404,10 @@ protected:
 
   void duplique_bords_internes();
 
+  //attributes necessary to perform surface extraction on a moving boundary (deformable domaine, like ALE)
+  IntTab les_elems_extrait_surf_reference_; // list of elements belonging to the extracted surface on a moving boundary defines at the initialization.
+  bool extrait_surf_dom_deformable_; // indicates whether the domain was defined by extraction on a moving boundary
+
 private:
   void prepare_rmp_with(Domaine& );
   // Volume total du domaine (somme sur tous les processeurs)
@@ -401,6 +415,8 @@ private:
   // Cached infos to accelerate Domaine::chercher_elements():
   mutable DoubleTabs cached_positions_;
   mutable ArrsOfInt cached_elements_;
+  mutable DoubleTabs cached_positions_FT_; // EB
+  mutable ArrsOfInt cached_elements_FT_; // EB
 };
 
 /*! @brief Renvoie le nombre d'elements du domaine.
@@ -888,5 +904,30 @@ inline IntTab& Domaine::set_aretes_som() {  return aretes_som_; }
  */
 inline const IntTab& Domaine::elem_aretes() const {   return elem_aretes_; }
 inline IntTab& Domaine::set_elem_aretes() {   return elem_aretes_; }
+
+
+inline void Domaine::setLes_elems_extrait_surf_ref(const IntTab& ref)
+{
+  les_elems_extrait_surf_reference_=ref;
+
+}
+inline IntTab Domaine::getLes_elems_extrait_surf_ref() const
+{
+  return les_elems_extrait_surf_reference_;
+}
+
+
+inline void Domaine::setExtrait_surf_dom_deformable(bool def)
+{
+
+  extrait_surf_dom_deformable_ = def;
+
+}
+inline bool Domaine::getExtrait_surf_dom_deformable() const
+{
+
+  return extrait_surf_dom_deformable_;
+
+}
 
 #endif
