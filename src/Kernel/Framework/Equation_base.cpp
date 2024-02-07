@@ -1886,7 +1886,7 @@ void Equation_base::Gradient_conjugue_diff_impl(DoubleTrav& secmem, DoubleTab& s
             p *= (prodrz_new / prodrz_old);
             p -= z;
             prodrz_old = prodrz_new;
-            // On previent si convergence anormalement intue sur de tres gros cas
+            // On previent si convergence anormalement longue sur de tres gros cas
             if (niter == 100)
               {
                 Cout
