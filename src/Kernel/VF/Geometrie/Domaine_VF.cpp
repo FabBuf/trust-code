@@ -815,38 +815,6 @@ void Domaine_VF::marquer_aretes_multiple_contrib(const Conds_lim& conds_lim)
 
   aretes_multiples_virt_pe_num_.echange_espace_virtuel();
   aretes_multiples_.echange_espace_virtuel();
-  /*
-  IntTab tab_aretes;
-  tab_aretes.resize(na_tot);
-  Cerr << "domaine().nb_aretes() " << domaine().nb_aretes() << finl;
-  creer_tableau_aretes(tab_aretes,Array_base::NOCOPY_NOINIT);
-  tab_aretes=0;
-  for (int arete=0; arete<zone().nb_aretes(); arete++)
-    {
-      if (aretes_multiples_(arete)>0) tab_aretes(arete)=1;
-    }
-  MD_Vector_tools::echange_espace_virtuel(tab_aretes,MD_Vector_tools::EV_SOMME_ECHANGE);
-  for (int arete=0; arete<na_tot; arete++)
-    {
-      if (tab_aretes(arete)>0)
-        {
-          Cerr << "arete " << arete << " tab_aretes(arete) " << tab_aretes(arete) << " de cg " << xa(arete,0) << " " << xa(arete,1) << " " << xa(arete,2) <<
-               "\tpe0 " << aretes_multiples_virt_pe_num_(arete,0)  <<
-               " pe1 " << aretes_multiples_virt_pe_num_(arete,2)  <<
-               " pe2 " << aretes_multiples_virt_pe_num_(arete,4)  <<
-               " pe3 " <<aretes_multiples_virt_pe_num_(arete,6) << finl;
-        }
-    }
-  Process::exit();
-  */
-  /*
-  int i,index;
-  for (i=na; i<na_tot; i++)
-    {
-      index=i-na;
-      for (int j=0; j<8; j++)  aretes_multiples_virt_pe_num_(index,j)=tmp(i,j);
-    }
-  */
 }
 
 void Domaine_VF::infobord()
